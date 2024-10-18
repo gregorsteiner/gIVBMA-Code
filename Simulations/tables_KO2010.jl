@@ -12,10 +12,10 @@ end
 # Function to combine tables into a stacked multicolumn table
 function make_stacked_multicolumn_table(res)
     # Extract the tables for each scenario
-    table_50_001 = format_result(res[:n50][2])
-    table_50_01 = format_result(res[:n50][1])
-    table_500_001 = format_result(res[:n500][2])
-    table_500_01 = format_result(res[:n500][1])
+    table_50_001 = format_result(res[:n50][1])
+    table_50_01 = format_result(res[:n50][2])
+    table_500_001 = format_result(res[:n500][1])
+    table_500_01 = format_result(res[:n500][2])
 
     # Header for each method
     methods = ["IVBMA", "IVBMA-2C", "TSLS", "O-TSLS", "JIVE", "RJIVE", "Post-LASSO", "MATSLS"]

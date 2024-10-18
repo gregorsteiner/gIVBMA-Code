@@ -63,7 +63,6 @@ function gen_data_Kang2016(n::Integer = 200, τ::Number = 0.1, p::Integer = 10, 
 end
 
 
-
 """
     This function generates the quantites of interest for each method.
 """
@@ -72,7 +71,7 @@ function meth_KO2010(n::Integer, c_M::Number, τ::Number, iter::Integer; level =
     d_h = gen_data_KO2010(Int(n/5), c_M, τ)
 
     # full posterior samples for each bma variant
-    bma_meths = [ivbma, ivbma_2c]
+    bma_meths = [iv_fit, ivbma, ivbma_2c]
     try
         global res_full = map(f -> f(d.y, d.x, d.Z, d.W; iter = iter, burn = Int(iter/2)), bma_meths)
     catch e
