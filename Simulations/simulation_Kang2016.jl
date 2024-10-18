@@ -6,8 +6,8 @@ Pkg.develop(path="../../IVBMA")
 using IVBMA
 
 include("competing_methods.jl")
+include("sisVIVE.jl")
 include("aux_functions.jl")
-
 
 
 m = 200
