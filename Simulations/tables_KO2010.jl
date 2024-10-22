@@ -18,7 +18,7 @@ function make_stacked_multicolumn_table(res)
     table_500_01 = format_result(res[:n500][2])
 
     # Header for each method
-    methods = ["IVBMA", "IVBMA-2C", "TSLS", "O-TSLS", "JIVE", "RJIVE", "Post-LASSO", "MATSLS"]
+    methods = ["BayesIV", "IVBMA", "IVBMA-2C", "TSLS", "O-TSLS", "JIVE", "RJIVE", "Post-LASSO", "MATSLS"]
 
     # Start the LaTeX table (without math mode)
     table_str = "\\begin{table}\n\\centering\n\\begin{tabular}{l*{8}{r}}\n\\toprule\n"
@@ -60,7 +60,7 @@ function make_stacked_multicolumn_table(res)
 
     # Finish the table
     table_str *= "\\bottomrule\n\\end{tabular}\n"
-    table_str *= "\\caption{RMSE, bias, credible (or confidence) interval coverage (nominal 95\\%) and mean LPS (lower is better) on 1,000 simulated datasets. RMSE and Bias are based on the posterior mean of IVBMA.}\n"
+    table_str *= "\\caption{RMSE, bias, credible (or confidence) interval coverage (nominal 95\\%) and mean LPS (lower is better) on 500 simulated datasets. RMSE and Bias are based on the posterior mean of IVBMA.}\n"
     table_str *= "\\label{tab:KO_Sim}\n\\end{table}"
 
     return table_str
