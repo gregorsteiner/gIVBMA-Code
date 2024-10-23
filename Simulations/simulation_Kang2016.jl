@@ -1,8 +1,7 @@
 
 using BSON
 
-
-Pkg.develop(path="../../IVBMA")
+using Pkg; Pkg.activate("../../IVBMA")
 using IVBMA
 
 include("competing_methods.jl")
