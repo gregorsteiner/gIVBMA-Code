@@ -16,14 +16,15 @@ Z = Matrix(gdp[:, startswith.(names(gdp), "z")])
 Z = Z[:, Not(37)] # remove redundant level
 
 
-iters = 100000 # number of iterations
-m = [size(W, 2)/2, 5] # prior mean model size
+iters = 5000 # number of iterations
+m = [size(W, 2)/2, size(Z, 2)/5] # prior mean model size
 
 res = ivbma(y, x, Z, W; iter = iters, burn = Int(iters/5), pln = true, m = m)
 res_2c = ivbma(y, x, Z, W; iter = iters, burn = Int(iters/5), pln = true, two_comp = true, m = m)
 
 plot(res)
-plot(res2c)
+plot(res_2c)
+
 
 # Classical estimators
 res_ols = ols(y, x, W)

@@ -17,3 +17,5 @@ res500 = map(s -> sim_func(m, 500; type = "Kang2016", s = s), ss)
 
 bson("SimResKang2016.bson", Dict(:n50 => res50, :n500 => res500))
 
+
+
