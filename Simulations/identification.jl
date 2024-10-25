@@ -1,5 +1,5 @@
 
-using Distributions
+using Distributions, LinearAlgebra
 using StatsPlots, Plots
 
 """
@@ -59,12 +59,12 @@ function plot_joint_density(τ_range, δ_range)
         )
 end
 
-n = 1000; c = 0.5
-τ = 1/2; δ = 0
+n = 10000; c = 0.5
+τ = 1/2; δ = 1; β = 0
 z = rand(Normal(0, 1), n)
 u = rand(MvNormal([0, 0], [1 c; c 1]), n)'
-x = z * δ + u[:,2]
-y = τ * x + u[:,1]
+x = z * δ  + u[:,2]
+y = τ * x + β * z + u[:,1]
 Σ = [1 c; c 1]
 
 τ_range = (-1, 1)  # Range of τ values
@@ -75,41 +75,50 @@ plot_joint_density(τ_range, δ_range)
 """
     Conditional distribution of τ given δ
 """
-function post_τ(δ; y = y, x = x, z = z, Σ = Σ, κ2_τ = 100, κ2_δ = 100)
+function post_τ(δ; y = y, x = x, z = z, Σ = Σ)
     cov_ratio = Σ[1,2]/Σ[2,2]
     ψ2 = Σ[1,1] - Σ[1,2]^2/Σ[2,2]
 
-    mean_τ = x' * (y - cov_ratio * (x - δ * z)) / (x'x + ψ2/κ2_τ)
-    cov_τ = ψ2 * inv(x'x + ψ2/κ2_τ)
+    mean_τ = inv(x'x) * x' * (y - cov_ratio * (x - δ * z))
+    cov_τ = ψ2 * inv(x'x)
 
     res = Normal(mean_τ, sqrt(cov_τ))
     return res
 end
 
-n = 1000; c = 0.5
-τ = 1/2; δ = 0.0
+n = 10000; c = 0.9
+τ = 1/2; δ = 0.25
 z = rand(Normal(0, 1), n)
 u = rand(MvNormal([0, 0], [1 c; c 1]), n)'
 x = z * δ + u[:,2]
 y = τ * x + u[:,1]
 Σ = [1 c; c 1]
 
+cov(x, (y-τ*x))
+cov((x - δ*z), (y-τ*x))
+
+inv(x'x) * x'y
+inv(x'x) * x'z
+
+
 plot(post_τ(0.5), label = "δ = 0.5")
-plot!(post_τ(0.2), label = "δ = 0.2")
+plot!(post_τ(0.25), label = "δ = 0.25")
 plot!(post_τ(0), label = "δ = 0")
 
 
 """
 Inspect the posterior of the covariance matrix Σ given τ and δ
 """
-n = 100; p = 1; c = 0.5
-τ = 1
-δ = 0
+n = 1000; p = 1; c = 0.5
+τ = 1/2
+δ = 1
 z = rand(Normal(0, 1), n)
 
 u = rand(MvNormal([0, 0], [1 c; c 1]), n)'
 x = z * δ + u[:,2]
-y = τ * x + u[:,1]
+y = τ * x + z+ u[:,1]
+
+Σ = [1 c; c 1]
 
 function approx_post_Σ(τ, δ; y = y, x = x, z = z, m = 10000)
     ϵ = y - τ * x
@@ -123,6 +132,6 @@ function approx_post_Σ(τ, δ; y = y, x = x, z = z, m = 10000)
     return res
 end
 
-density(approx_post_Σ(1, 1))
-density!(approx_post_Σ(1, 0))
+density(approx_post_Σ(1/2, 1))
+density!(approx_post_Σ(1/2, 0))
 vline!([c], label = "true value")
