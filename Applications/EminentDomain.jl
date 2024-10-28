@@ -1,5 +1,5 @@
 
-using CSV, DataFrames, PrettyTables, Statistics, StatsPlots, BSON
+using CSV, DataFrames, PrettyTables, Statistics, StatsPlots
 using Pkg; Pkg.activate("../../IVBMA")
 using IVBMA
 
@@ -16,7 +16,7 @@ Z = Matrix(gdp[:, startswith.(names(gdp), "z")])
 Z = Z[:, Not(37)] # remove redundant level
 
 
-iters = 5000 # number of iterations
+iters = 20000 # number of iterations
 m = [size(W, 2)/2, size(Z, 2)/5] # prior mean model size
 
 res = ivbma(y, x, Z, W; iter = iters, burn = Int(iters/5), pln = true, m = m)
