@@ -45,7 +45,7 @@ pretty_table(
 )
 
 
-p = density([res.τ res_2c.τ], fill = true, alpha = 0.6, label = ["IVBMA" "IVBMA-2C"])
+p = plot(res)
 savefig(p, "ED_Results.pdf")
 
 
