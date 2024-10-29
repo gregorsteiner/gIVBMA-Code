@@ -154,9 +154,9 @@ function meth_pln(n::Integer, c_M::Number, τ::Number, iter::Integer; level = 0.
     d_h = gen_data_pln(Int(n/5), c_M, τ)
 
     # full posterior samples for each bma variant
-    ν_prior = ν -> logpdf(Normal(20, 0.1), ν) 
-    dists = ["PLN", "PLN","Gaussian", "Gaussian"]
-    two_comp_bool = [false, true, false, true]
+    ν_prior = ν -> logpdf(Normal(10, 0.1), ν) 
+    dists = ["PLN", "PLN"] #,"Gaussian", "Gaussian"]
+    two_comp_bool = [false, true] #, false, true]
     try
         global res_full = map((dist, two_comp) -> ivbma(d.y, d.x, d.Z, d.W; iter = iter, burn = Int(iter/2), dist = dist, two_comp = two_comp, ν_prior = ν_prior), dists, two_comp_bool)
     catch e
