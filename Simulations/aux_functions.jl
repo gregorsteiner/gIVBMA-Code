@@ -19,6 +19,7 @@ end
     Generate data for the simulation based on one of the following designs:
         1. Kuersteiner & Okui (2010)
         2. Kang et al (2016)
+        3. Kuersteiner & Okui (2010) with x transformed to count data
 """
 function gen_data_KO2010(n::Integer = 100, c_M::Number = 3/8, τ::Number = 0.1, p::Integer = 20, k::Integer = 10, c::Number = 1/2)
     V = rand(MvNormal(zeros(p+k), I), n)'
@@ -60,6 +61,29 @@ function gen_data_Kang2016(n::Integer = 200, τ::Number = 0.1, p::Integer = 10, 
     Z = Z .- mean(Z; dims = 1)
 
     return (y=y, x=x, Z=Z)
+end
+
+
+function gen_data_pln(n::Integer = 100, c_M::Number = 3/8, τ::Number = 0.1, p::Integer = 20, k::Integer = 10, c::Number = 1/2)
+    V = rand(MvNormal(zeros(p+k), I), n)'
+    Z = V[:,1:p]
+    W = V[:,(p+1):(p+k)]
+
+    α = 1; γ = -1
+    δ_Z = gen_instr_coeff(p, c_M)
+    δ_W = [ones(Int(k/2)); zeros(Int(k/2))] .* 0.1
+    β = [ones(Int(k/2)); zeros(Int(k/2))]
+
+    u = rand(MvNormal([0, 0], [1 c; c 1]), n)'
+    q = γ .+ Z * δ_Z + W * δ_W + u[:,2]
+    x = [rand(Poisson(exp(q[j]))) for j in eachindex(q)]
+    y = α .+ τ * x .+ W * β + u[:,1]
+
+    # centre all regressors
+    Z = Z .- mean(Z; dims = 1)
+    W = W .- mean(W; dims = 1)
+
+    return (y=y, x=x, q=q, Z=Z, W=W)
 end
 
 
@@ -125,6 +149,34 @@ function meth_Kang2016(n::Integer, p::Number, s::Number, τ::Number, iter::Integ
     return res
 end
 
+function meth_pln(n::Integer, c_M::Number, τ::Number, iter::Integer; level = 0.05)
+    d = gen_data_pln(n, c_M, τ)
+    d_h = gen_data_pln(Int(n/5), c_M, τ)
+
+    # full posterior samples for each bma variant
+    ν_prior = ν -> logpdf(Normal(20, 0.1), ν) 
+    dists = ["PLN", "PLN","Gaussian", "Gaussian"]
+    two_comp_bool = [false, true, false, true]
+    try
+        global res_full = map((dist, two_comp) -> ivbma(d.y, d.x, d.Z, d.W; iter = iter, burn = Int(iter/2), dist = dist, two_comp = two_comp, ν_prior = ν_prior), dists, two_comp_bool)
+    catch e
+        d = gen_data_KO2010(n, c_M, τ)
+        global res_full = map((dist, two_comp) -> ivbma(d.y, d.x, d.Z, d.W; iter = iter, burn = Int(iter/2), dist = dist, two_comp = two_comp, ν_prior = ν_prior), dists, two_comp_bool)
+    end
+
+    # compute posterior mean, credible interval and lpd
+    res = map(x -> (τ = mean(x.τ), CI = quantile(x.τ, [level/2, 1 - level/2]), lpd = lpd(x, d_h.y, d_h.x, d_h.Z, d_h.W)), res_full)
+
+    res = [
+        res;
+        tsls(d.y, d.x, d.Z, d.W, d_h.y, d_h.x, d_h.W; level = level);
+        tsls(d.y, d.x, d.Z[:, 1:10], d.W[:, 1:5], d_h.y, d_h.x, d_h.W[:, 1:5]; level = level);
+    ]
+
+    return res
+end
+
+
 
 """
     This function performs the simulation and returns the RMSE, coverage and CI width for each method.
@@ -140,6 +192,8 @@ function sim_func(m::Integer, n::Integer; c_M::Number = 3/8, τ::Number = 1, ite
             res = meth_KO2010(n, c_M, τ, iter; level = level)
         elseif type == "Kang2016"
             res = meth_Kang2016(n, p, s, τ, iter; level = level)
+        elseif type == "PLN"
+            res = meth_pln(n, c_M, τ, iter; level = level)
         end
         taus[i] = map(x -> x.τ, res)
         covg[i] = map(x -> (x.CI[1] < τ) & (x.CI[2] > τ), res)
