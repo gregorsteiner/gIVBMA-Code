@@ -5,7 +5,7 @@ res = BSON.load("SimResPLN.bson")
 
 # Helper function to format individual results into a LaTeX tabular format
 function format_result(res)
-    tab = vcat(res.RMSE, res.Bias, res.Coverage', res.lpd')'
+    tab = vcat(res.RMSE, res.Bias, res.Coverage', res.lps')'
     return round.(tab, digits = 2)
 end
 

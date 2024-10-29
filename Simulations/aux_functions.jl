@@ -104,7 +104,7 @@ function meth_KO2010(n::Integer, c_M::Number, τ::Number, iter::Integer; level =
     end
 
     # compute posterior mean, credible interval and lpd
-    res = map(x -> (τ = mean(x.τ), CI = quantile(x.τ, [level/2, 1 - level/2]), lpd = lpd(x, d_h.y, d_h.x, d_h.Z, d_h.W)), res_full)
+    res = map(x -> (τ = mean(x.τ), CI = quantile(x.τ, [level/2, 1 - level/2]), lps = lps(x, d_h.y, d_h.x, d_h.Z, d_h.W)), res_full)
 
     res = [
         res;
@@ -136,7 +136,7 @@ function meth_Kang2016(n::Integer, p::Number, s::Number, τ::Number, iter::Integ
     res = (
         τ = mean(res_full.τ),
         CI = quantile(res_full.τ, [level/2, 1 - level/2]),
-        lpd = lpd(res_full, d_h.y, d_h.x, d_h.Z)
+        lps = lps(res_full, d_h.y, d_h.x, d_h.Z)
     )
     
     res = [
@@ -165,7 +165,7 @@ function meth_pln(n::Integer, c_M::Number, τ::Number, iter::Integer; level = 0.
     end
 
     # compute posterior mean, credible interval and lpd
-    res = map(x -> (τ = mean(x.τ), CI = quantile(x.τ, [level/2, 1 - level/2]), lpd = lpd(x, d_h.y, d_h.x, d_h.Z, d_h.W)), res_full)
+    res = map(x -> (τ = mean(x.τ), CI = quantile(x.τ, [level/2, 1 - level/2]), lps = lps(x, d_h.y, d_h.x, d_h.Z, d_h.W)), res_full)
 
     res = [
         res;
@@ -198,7 +198,7 @@ function sim_func(m::Integer, n::Integer; c_M::Number = 3/8, τ::Number = 1, ite
         taus[i] = map(x -> x.τ, res)
         covg[i] = map(x -> (x.CI[1] < τ) & (x.CI[2] > τ), res)
         width[i] = map(x -> x.CI[2] - x.CI[1], res)
-        lpds[i] = map(x -> x.lpd, res)
+        lpds[i] = map(x -> x.lps, res)
 
         println(string(i) * "/" * string(m)) # add progress
     end
@@ -207,7 +207,7 @@ function sim_func(m::Integer, n::Integer; c_M::Number = 3/8, τ::Number = 1, ite
     bias = mapslices(x -> mean((x .- τ)), reduce(vcat, taus'); dims = 1)
     covg = mean(covg; dims = 1)[1]
     width = mean(width; dims = 1)[1]
-    lpd = mean(lpds; dims = 1)[1]
+    lps = mean(lpds; dims = 1)[1]
 
-    return (RMSE = rmse, Bias = bias, Coverage = covg, Width = width, lpd = lpd)
+    return (RMSE = rmse, Bias = bias, Coverage = covg, Width = width, lps = lps)
 end
