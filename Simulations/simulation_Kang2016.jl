@@ -9,7 +9,7 @@ include("sisVIVE.jl")
 include("aux_functions.jl")
 
 
-m = 200
+m = 500
 ss = [3, 6]
 
 res50 = map(s -> sim_func(m, 50; type = "Kang2016", s = s), ss)

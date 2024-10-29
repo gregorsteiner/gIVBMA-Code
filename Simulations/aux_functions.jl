@@ -71,12 +71,12 @@ function meth_KO2010(n::Integer, c_M::Number, τ::Number, iter::Integer; level =
     d_h = gen_data_KO2010(Int(n/5), c_M, τ)
 
     # full posterior samples for each bma variant
-    bma_meths = [iv_fit, ivbma, ivbma_2c]
+    two_comp_bool = [false, true]
     try
-        global res_full = map(f -> f(d.y, d.x, d.Z, d.W; iter = iter, burn = Int(iter/2)), bma_meths)
+        global res_full = map(bo -> ivbma(d.y, d.x, d.Z, d.W; iter = iter, burn = Int(iter/2), two_comp = bo), two_comp_bool)
     catch e
         d = gen_data_KO2010(n, c_M, τ)
-        global res_full = map(f -> f(d.y, d.x, d.Z, d.W; iter = iter, burn = Int(iter/2)), bma_meths)
+        global res_full = map(bo -> ivbma(d.y, d.x, d.Z, d.W; iter = iter, burn = Int(iter/2), two_comp = bo), two_comp_bool)
     end
 
     # compute posterior mean, credible interval and lpd
@@ -100,11 +100,12 @@ function meth_Kang2016(n::Integer, p::Number, s::Number, τ::Number, iter::Integ
     d_h = gen_data_Kang2016(Int(n/5), τ, p, s)
 
     # full posterior samples for each bma variant
+    ν_prior = ν -> logpdf(Normal(20, 0.1), ν)
     try
-        global res_full = ivbma(d.y, d.x, d.Z; iter = iter, burn = Int(iter/2))
+        global res_full = ivbma(d.y, d.x, d.Z; iter = iter, burn = Int(iter/2), ν_prior = ν_prior)
     catch
         d = gen_data_Kang2016(n, τ, p, s)
-        global res_full = ivbma(d.y, d.x, d.Z; iter = iter, burn = Int(iter/2))
+        global res_full = ivbma(d.y, d.x, d.Z; iter = iter, burn = Int(iter/2), ν_prior = ν_prior)
     end
 
     # compute posterior mean, credible interval and lpd
@@ -117,7 +118,7 @@ function meth_Kang2016(n::Integer, p::Number, s::Number, τ::Number, iter::Integ
     res = [
         res;
         tsls(d.y, d.x, d.Z, d_h.y, d_h.x, d_h.Z)
-        tsls(d.y, d.x, d.Z[:, (s+1):p], d_h.y, d_h.x, d_h.Z[:, (s+1):p])
+        tsls(d.y, d.x, d.Z[:, (s+1):p], d.Z[:, 1:s], d_h.y, d_h.x, d_h.Z[:, 1:s])
         sisVIVE(d.y, d.x, d.Z, d_h.y, d_h.x, d_h.Z; level = level)
     ]
 
