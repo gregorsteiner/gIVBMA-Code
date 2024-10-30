@@ -14,8 +14,8 @@ function make_stacked_multicolumn_table(res)
     # Extract the tables for each scenario
     table_50_001 = format_result(res[:n50][1])
     table_50_01 = format_result(res[:n50][2])
-    table_500_001 = format_result(res[:n200][1])
-    table_500_01 = format_result(res[:n200][2])
+    table_500_001 = format_result(res[:n500][1])
+    table_500_01 = format_result(res[:n500][2])
 
     # Header for each method
     methods = ["IVBMA-PLN", "IVBMA-PLN-2C", "TSLS", "O-TSLS"]
@@ -45,7 +45,7 @@ function make_stacked_multicolumn_table(res)
     table_str *= "\\midrule\n"
 
     # Add another block for n = 500 scenarios
-    table_str *= " & \\multicolumn{8}{c}{n = 200} \\\\\n"
+    table_str *= " & \\multicolumn{8}{c}{n = 500} \\\\\n"
     table_str *= " & \\multicolumn{4}{c}{R_f^2 = 0.1} & \\multicolumn{4}{c}{R_f^2 = 0.2} \\\\\n"
     table_str *= "\\cmidrule(lr){2-5}\\cmidrule(lr){6-9}\n"
     table_str *= " & \\textbf{RMSE} & \\textbf{Bias} & \\textbf{Cov.} & \\textbf{LPS} "
