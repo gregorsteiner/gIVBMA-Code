@@ -19,11 +19,11 @@ function tsls(y, x, Z, W, y_h, x_h, W_h; level = 0.05)
     sd_τ_hat = sqrt(σ2_hat * inv(U' * P_V * U)[2, 2])
     ci = τ_hat .+ [-1, 1] * quantile(Normal(0, 1), 1 - level/2) * sd_τ_hat
 
-    # compute lpd on holdout dataset
+    # compute lps on holdout dataset
     U_h = [ones(length(y_h)) x_h W_h]
-    lpd = -logpdf(MvNormal(U_h * β_hat, σ2_hat * I), y_h)
+    lps = -logpdf(MvNormal(U_h * β_hat, σ2_hat * I), y_h)
 
-    return (τ = τ_hat, CI = ci, lpd = lpd)
+    return (τ = τ_hat, CI = ci, lps = lps)
 end
 
 function tsls(y, x, Z, y_h, x_h, Z_h; level = 0.05)
@@ -41,11 +41,11 @@ function tsls(y, x, Z, y_h, x_h, Z_h; level = 0.05)
     sd_τ_hat = sqrt(σ2_hat * inv(U' * P_V * U)[2, 2])
     ci = τ_hat .+ [-1, 1] * quantile(Normal(0, 1), 1 - level/2) * sd_τ_hat
 
-    # compute lpd on holdout dataset
+    # compute lps on holdout dataset
     U_h = [ones(length(y_h)) x_h]
-    lpd = -logpdf(MvNormal(U_h * β_hat, σ2_hat * I), y_h)
+    lps = -logpdf(MvNormal(U_h * β_hat, σ2_hat * I), y_h)
 
-    return (τ = τ_hat, CI = ci, lpd = lpd)
+    return (τ = τ_hat, CI = ci, lps = lps)
 end
 
 """
@@ -111,14 +111,14 @@ function post_lasso(y, x, Z, W, y_h, x_h, W_h; level = 0.05, sim = true)
     # Confidence interval for τ_hat
     ci = τ_hat .+ [-1, 1] * quantile(Normal(0, 1), 1 - level/2) * sd_τ_hat
 
-    # Compute LPD on holdout dataset
+    # Compute lps on holdout dataset
     U_h = [ones(length(y_h)) x_h W_h]
-    lpd = -logpdf(MvNormal(U_h * β_hat, σ2_hat * I), y_h)
+    lps = -logpdf(MvNormal(U_h * β_hat, σ2_hat * I), y_h)
 
     if sim
-        return (τ = τ_hat, CI = ci, lpd = lpd)
+        return (τ = τ_hat, CI = ci, lps = lps)
     else 
-        return (τ = τ_hat, CI = ci, lpd = lpd, selected_instruments = selected_instruments)
+        return (τ = τ_hat, CI = ci, lps = lps, selected_instruments = selected_instruments)
     end
 end
 
@@ -161,11 +161,11 @@ function jive(y, x, Z, W, y_h, x_h, W_h; level = 0.05)
     # Confidence interval for τ_hat
     ci = τ_hat .+ [-1, 1] * quantile(Normal(0, 1), 1 - level/2) * sd_τ_hat
 
-    # Compute LPD on holdout dataset
+    # Compute lps on holdout dataset
     U_h = [ones(length(y_h)) x_h W_h]
-    lpd = -logpdf(MvNormal(U_h * β_hat, σ2_hat * I), y_h)
+    lps = -logpdf(MvNormal(U_h * β_hat, σ2_hat * I), y_h)
 
-    return (τ = τ_hat, CI = ci, lpd = lpd)
+    return (τ = τ_hat, CI = ci, lps = lps)
 end
 
 
@@ -211,11 +211,11 @@ function rjive(y, x, Z, W, y_h, x_h, W_h; level = 0.05)
     # Confidence interval for τ_hat
     ci = τ_hat .+ [-1, 1] * quantile(Normal(0, 1), 1 - level/2) * sd_τ_hat
 
-    # Compute LPD on holdout dataset
+    # Compute lps on holdout dataset
     U_h = [ones(length(y_h)) x_h W_h]
-    lpd = -logpdf(MvNormal(U_h * β_hat, σ2_hat * I), y_h)
+    lps = -logpdf(MvNormal(U_h * β_hat, σ2_hat * I), y_h)
 
-    return (τ = τ_hat, CI = ci, lpd = lpd)
+    return (τ = τ_hat, CI = ci, lps = lps)
 end
 
 """
@@ -241,11 +241,11 @@ function matsls(y, x, Z, W, y_h, x_h, W_h; level = 0.05)
     # Confidence interval for τ_hat
     ci = τ_hat .+ [-1, 1] * quantile(Normal(0, 1), 1 - level/2) * sd_τ_hat
 
-    # Compute LPD on holdout dataset
+    # Compute lps on holdout dataset
     U_h = [ones(length(y_h)) W_h x_h]
-    lpd = -logpdf(MvNormal(U_h * β_hat, σ2_hat * I), y_h)
+    lps = -logpdf(MvNormal(U_h * β_hat, σ2_hat * I), y_h)
 
-    return (τ = τ_hat, CI = ci, lpd = lpd)
+    return (τ = τ_hat, CI = ci, lps = lps)
 end
 
 

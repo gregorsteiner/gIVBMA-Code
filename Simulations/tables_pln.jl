@@ -1,8 +1,7 @@
-
 using BSON
 
 # Load the simulation results
-res = BSON.load("SimResKang2016.bson")
+res = BSON.load("SimResPLN.bson")
 
 # Helper function to format individual results into a LaTeX tabular format
 function format_result(res)
@@ -19,7 +18,7 @@ function make_stacked_multicolumn_table(res)
     table_500_01 = format_result(res[:n500][2])
 
     # Header for each method
-    methods = ["IVBMA", "TSLS", "O-TSLS", "sisVIVE"]
+    methods = ["IVBMA-PLN", "IVBMA-PLN-2C", "TSLS", "O-TSLS"]
 
     # Start the LaTeX table (without math mode)
     table_str = "\\begin{table}\n\\centering\n\\begin{tabular}{l*{8}{r}}\n\\toprule\n"
@@ -28,7 +27,7 @@ function make_stacked_multicolumn_table(res)
     table_str *= " & \\multicolumn{8}{c}{n = 50} \\\\\n"
     
     # Second row: showing R_f^2 for each n = 50 case
-    table_str *= " & \\multicolumn{4}{c}{s = 3} & \\multicolumn{4}{c}{s = 6} \\\\\n"
+    table_str *= " & \\multicolumn{4}{c}{R_f^2 = 0.1} & \\multicolumn{4}{c}{R_f^2 = 0.2} \\\\\n"
     
     # Third row: RMSE, Bias, Coverage, LPS labels for each R^2
     table_str *= "\\cmidrule(lr){2-5}\\cmidrule(lr){6-9}\n"
@@ -47,7 +46,7 @@ function make_stacked_multicolumn_table(res)
 
     # Add another block for n = 500 scenarios
     table_str *= " & \\multicolumn{8}{c}{n = 500} \\\\\n"
-    table_str *= " & \\multicolumn{4}{c}{s = 3} & \\multicolumn{4}{c}{s = 6} \\\\\n"
+    table_str *= " & \\multicolumn{4}{c}{R_f^2 = 0.1} & \\multicolumn{4}{c}{R_f^2 = 0.2} \\\\\n"
     table_str *= "\\cmidrule(lr){2-5}\\cmidrule(lr){6-9}\n"
     table_str *= " & \\textbf{RMSE} & \\textbf{Bias} & \\textbf{Cov.} & \\textbf{LPS} "
     table_str *= "& \\textbf{RMSE} & \\textbf{Bias} & \\textbf{Cov.} & \\textbf{LPS} \\\\\n\\midrule\n"
@@ -62,7 +61,7 @@ function make_stacked_multicolumn_table(res)
     # Finish the table
     table_str *= "\\bottomrule\n\\end{tabular}\n"
     table_str *= "\\caption{RMSE, bias, credible (or confidence) interval coverage (nominal 95\\%) and mean LPS (lower is better) on 500 simulated datasets. RMSE and Bias are based on the posterior mean of IVBMA.}\n"
-    table_str *= "\\label{tab:Kang_Sim}\n\\end{table}"
+    table_str *= "\\label{tab:PLN_Sim}\n\\end{table}"
 
     return table_str
 end
@@ -70,4 +69,3 @@ end
 # Generate and print the LaTeX table with stacked multicolumns
 latex_table = make_stacked_multicolumn_table(res)
 println(latex_table)
-
