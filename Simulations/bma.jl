@@ -54,7 +54,7 @@ function adjust_variance(curr_variance, acc_prob, desired_acc_prob, iter)
     return exp(log_variance)
 end
 
-function bma(y::AbstractVector, X::AbstractMatrix, W::AbstractMatrix; iter::Integer = 2000, burn::Integer = 1000, g_prior = "BRIC", dist)
+function bma(y::AbstractVector, X::AbstractMatrix, W::AbstractMatrix; iter::Integer = 2000, burn::Integer = 1000, g_prior = "BRIC", dist = "Gaussian")
     n, k = size(W)
     l = size(X, 2)
     

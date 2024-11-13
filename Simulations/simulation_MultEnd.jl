@@ -11,6 +11,7 @@ using IVBMA
     Define auxiliary functions
 """
 
+
 # logistic function
 logit(x) = exp(x) / (1+exp(x))
 
@@ -19,8 +20,10 @@ function gen_data(n, c, tau = [-1/2, 1/2], p = 10)
     Z = rand(MvNormal(zeros(p), I), n)'
     ι = ones(n)
 
+    Σ = c .^ abs.((1:3) .- (1:3)')
+
     α, τ, β = (0, tau, zeros(p))
-    Γ, Δ = ([0, 0], [(ones(p) ./ (1:p)) (ones(p) ./ (1:p))])
+    Γ, Δ = ([0, 0], [(ones(p)) (ones(p))])
 
     u = rand(MvNormal([0, 0, 0], [1 c c; c 1 c; c c 1]), n)'
 
@@ -44,10 +47,14 @@ function ivbma_sep(y, X, Z; dist = ["Gaussian", "BL"], g_prior = "BRIC")
 end
 
 # functions to compute the performance measures
-function squared_error(τ, true_tau)
+function squared_error_and_bias(τ, true_tau)
     τ_hat = mean(τ; dims = 1)[1,:]
-    return (τ_hat - true_tau)' * (τ_hat - true_tau)
+    return (
+        se = (τ_hat - true_tau)' * (τ_hat - true_tau),
+        bias = ones(length(τ_hat))' * abs.(τ_hat - true_tau)
+    )
 end
+
 
 function coverage(τ, true_tau)
     covg = Vector{Bool}(undef, length(true_tau))
@@ -59,11 +66,12 @@ function coverage(τ, true_tau)
 end
 
 # Wrapper function that runs the simulation
-function sim_func(m, n, c; tau = [-1/2, 1/2], p = 10)
+function sim_func(m, n, c; tau = [-1/2, 1], p = 10)
     meths = [bma, ivbma, ivbma_sep]
     g_priors = ["BRIC", "hyper-g/n"]
 
     squared_error_store = Matrix(undef, m, length(meths) * length(g_priors))
+    bias_store = Matrix(undef, m, length(meths) * length(g_priors))
     times_covered = zeros(length(meths) * length(g_priors), 2)
 
     for i in ProgressBar(1:m)
@@ -71,25 +79,27 @@ function sim_func(m, n, c; tau = [-1/2, 1/2], p = 10)
 
         res = map(
             (f, g_p) -> f(d.y, d.X, d.Z; dist = ["Gaussian", "BL"], g_prior = g_p),
-            repeat(meths, length(g_priors)),
+            repeat(meths, inner = length(g_priors)),
             repeat(g_priors, length(meths))
         )
 
-        squared_error_store[i,:] = map(x -> squared_error(x.τ, tau), res)
+        calc = map(x -> squared_error_and_bias(x.τ, tau), res)
+        squared_error_store[i,:] = map(x -> x.se, calc)
+        bias_store[i,:] = map(x -> x.bias, calc)
         covg = map(x -> coverage(x.τ, tau), res)
         times_covered += reduce(vcat, covg')
     end
 
     rmse = sqrt.(mean(squared_error_store, dims = 1))
-    return (RMSE = rmse, Coverage = times_covered ./ m)
+    bias = mean(bias_store, dims = 1)
+    return (RMSE = rmse, Bias = bias, Coverage = times_covered ./ m)
 end
 
 """
     Run simulation
 """
-
-m, n = (500, 50)
-c = [0.25, 0.75]
+m, n = (100, 50)
+c = [0.3, 0.9]
 
 results_low = sim_func(m, n, c[1])
 results_high = sim_func(m, n, c[2])
@@ -98,5 +108,43 @@ results_high = sim_func(m, n, c[2])
     Create table with results
 """
 
+low_endog = [results_low.RMSE' results_low.Bias' results_low.Coverage]
+high_endog = [results_high.RMSE' results_high.Bias' results_high.Coverage]
 
+# Define row names
+row_names = [
+    "BMA (BRIC)",
+    "BMA (hyper-g/n)",
+    "IVBMA (BRIC)",
+    "IVBMA (hyper-g/n)",
+    "Sep. IVBMA (BRIC)",
+    "Sep. IVBMA (hyper-g/n)"
+]
+
+# Start building the LaTeX table as a string
+table = "\\begin{table}[h!]\n\\centering\n"
+table *= "\\begin{tabular}{l|cccc|cccc}\n"
+table *= "\\cmidrule(lr){2-5}\\cmidrule(lr){6-9} \\n"
+table *= " & \\multicolumn{4}{c|}{\\textbf{Low endogeneity}} & \\multicolumn{4}{c}{\\textbf{High endogeneity}} \\\\\n"
+table *= "\\hline\n"
+table *= " & RMSE & Bias & Covg. X1 & Covg. X2 & RMSE & Bias & Covg. X1 & Covg. X2 \\\\\n"
+table *= "\\hline\n"
+
+# Populate table rows with data from both matrices
+for i in 1:6
+    row = row_names[i] * " & "
+    row *= join([string(round(low_endog[i, j], digits=2)) for j in 1:4], " & ") * " & "
+    row *= join([string(round(high_endog[i, j], digits=2)) for j in 1:4], " & ") * " \\\\\n"
+    global table *= row
+end
+
+# Close the table
+table *= "\\hline\n"
+table *= "\\end{tabular}\n"
+table *= "\\caption{Results for the low and high endogeneity scenario over 100 simulated datasets.}\n"
+table *= "\\label{tab:SimResMultEndo}\n"
+table *= "\\end{table}"
+
+# Print the LaTeX code
+println(table)
 
