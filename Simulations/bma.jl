@@ -47,12 +47,14 @@ function model_prior(x, k; a = 1, m = floor(k/2))
     return res
 end
 
+hyper_g_n(g; a = 3, n = 100) = (a-2)/(2*n) * (1 + g/n)^(-a/2)
+
 function adjust_variance(curr_variance, acc_prob, desired_acc_prob, iter)
     log_variance = log(curr_variance) + iter^(-0.6) * (acc_prob - desired_acc_prob)
     return exp(log_variance)
 end
 
-function bma(y::AbstractVector, X::AbstractMatrix, W::AbstractMatrix, iter::Integer = 2000, burn::Integer = 1000, g_prior = "BRIC")
+function bma(y::AbstractVector, X::AbstractMatrix, W::AbstractMatrix; iter::Integer = 2000, burn::Integer = 1000, g_prior = "BRIC", dist)
     n, k = size(W)
     l = size(X, 2)
     
@@ -98,7 +100,7 @@ function bma(y::AbstractVector, X::AbstractMatrix, W::AbstractMatrix, iter::Inte
             prop = rand(LogNormal(log(g), sqrt(proposal_variance_g)))
             acc = min(1, exp(
                 marginal_likelihood(y, [X W[:, L]], prop) + log(hyper_g_n(prop; a = 3, n = n)) + log(prop) - 
-                (marginal_likelihood_outcome(y, [X W[:, L]], g) + log(hyper_g_n(g; a = 3, n = n)) + log(g))
+                (marginal_likelihood(y, [X W[:, L]], g) + log(hyper_g_n(g; a = 3, n = n)) + log(g))
             ))
             if rand() < acc
                 g = prop
