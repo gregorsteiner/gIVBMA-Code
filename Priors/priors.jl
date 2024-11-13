@@ -42,3 +42,19 @@ p = plot(x, jp_ν_normalised.(x, 10), label = "p = 10", xlabel = "ν", ylabel = 
 plot!(x, jp_ν_normalised.(x, 25), label = "p = 25")
 plot!(x, jp_ν_normalised.(x, 50), label = "p = 50")
 savefig(p, "Priors/Hyperprior_nu.pdf")
+
+
+# What is the implied prior on \sigma_{12}?
+using AdaptiveRejectionSampling, Distributions, LinearAlgebra
+
+f(x) = jp_ν(x, 15)
+
+# Build the sampler and simulate 10,000 samples
+sampler = RejectionSampler(f, (2.0, Inf), max_segments = 5)
+ν = run_sampler!(sampler, 100000)
+
+res = map(x -> rand(InverseWishart(x, [1 0; 0 1]))[1, 2], ν)
+density(res)
+
+
+

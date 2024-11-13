@@ -25,35 +25,25 @@ iters = 100000
 
 # Use rule as main endogenous variable
 y = df.lngdpc
-x = df.rule
-Z = Matrix(df[:, needed_columns[Not([1, 2])]])
+X = [df.rule df.malfal]
+Z = Matrix(df[:, needed_columns[Not(1:3)]])
 
-res_rule = ivbma(y, x, Z; iter = iters, burn = Int(iters/5))
-
-# malaria as main endogenous variable
-x = df.malfal
-Z = Matrix(df[:, needed_columns[Not([1, 3])]])
-
-res_malfal = ivbma(y, x, Z; iter = iters, burn = Int(iters/5), dist = "BL")
-
+res_bric = ivbma(y, X, Z; iter = iters, burn = Int(iters/5), dist = ["Gaussian", "BL"], g_prior = "BRIC")
+res_hg = ivbma(y, X, Z; iter = iters, burn = Int(iters/5), dist = ["Gaussian", "BL"], g_prior = "hyper-g/n")
 
 # Create table summarising the results
-function create_latex_table(res_rule, res_malfal)
+function create_latex_table(res_bric, res_hg)
     row_names = ["maleco", "lnmort", "frost", "humid", "latitude", "eurfrac", "engfrac", "coast", "trade"]
 
     # Unpack tau estimates for rule and malfal models
     post_mean_and_ci(x) = round.((mean(x), quantile(x, 0.025), quantile(x, 0.975)), digits=2)
-    rule_rule_estimate, rule_rule_lower, rule_rule_upper = post_mean_and_ci(res_rule.τ)
-    rule_malfal_estimate, rule_malfal_lower, rule_malfal_upper = post_mean_and_ci(res_rule.β[:, 1])
-    malfal_rule_estimate, malfal_rule_lower, malfal_rule_upper = post_mean_and_ci(res_malfal.β[:, 1])
-    malfal_malfal_estimate, malfal_malfal_lower, malfal_malfal_upper = post_mean_and_ci(res_malfal.τ)
-
-    # \sigma_{12} estimates
-    s12_rule_estimate, s12_rule_lower, s12_rule_upper = post_mean_and_ci(map(x -> x[1,2], res_rule.Σ))
-    s12_malfal_estimate, s12_malfal_lower, s12_malfal_upper = post_mean_and_ci(map(x -> x[1,2], res_malfal.Σ))
+    rule_bric = post_mean_and_ci(res_bric.τ[:, 1])
+    malfal_bric = post_mean_and_ci(res_bric.τ[:, 2])
+    rule_hg = post_mean_and_ci(res_hg.τ[:, 1])
+    malfal_hg = post_mean_and_ci(res_hg.τ[:, 2])
 
     # PIP table
-    PIP_tab = [mean(res_rule.L; dims = 1)' mean(res_rule.M; dims = 1)' mean(res_malfal.L; dims = 1)' mean(res_malfal.M; dims = 1)'][Not(1),:]
+    PIP_tab = [mean(res_bric.L; dims = 1)' mean(res_bric.M; dims = 1)' mean(res_hg.L; dims = 1)' mean(res_hg.M; dims = 1)']
 
     # Start LaTeX table
     table = """
@@ -61,13 +51,12 @@ function create_latex_table(res_rule, res_malfal)
     \\centering
     \\begin{tabular}{lcccc}
     \\toprule
-    & \\multicolumn{2}{c}{\\textbf{rule}} & \\multicolumn{2}{c}{\\textbf{malfal}} \\\\
+    & \\multicolumn{2}{c}{\\textbf{BRIC}} & \\multicolumn{2}{c}{\\textbf{hyper-g/n}} \\\\
     \\cmidrule(lr){2-3} \\cmidrule(lr){4-5}
-    & Posterior Mean & 95\\% CI & Posterior Mean & 95\\% CI \\\\
+    & Mean & 95\\% CI & Mean & 95\\% CI \\\\
     \\midrule
-     rule & $(rule_rule_estimate) &  [$(rule_rule_lower), $(rule_rule_upper)]  & $(malfal_rule_estimate) & [$(malfal_rule_lower), $(malfal_rule_upper)] \\\\
-     malfal & $(rule_malfal_estimate) &  [$(rule_malfal_lower), $(rule_malfal_upper)]  & $(malfal_malfal_estimate) & [$(malfal_malfal_lower), $(malfal_malfal_upper)] \\\\
-     \\sigma_{12} & $(s12_rule_estimate) &  [$(s12_rule_lower), $(s12_rule_upper)]  & $(s12_malfal_estimate) & [$(s12_malfal_lower), $(s12_malfal_upper)] \\\\
+     rule & $(rule_bric[1]) &  [$(rule_bric[2]), $(rule_bric[3])]  & $(rule_hg[1]) & [$(rule_hg[2]), $(rule_hg[3])] \\\\
+     malfal & $(malfal_bric[1]) &  [$(malfal_bric[2]), $(malfal_bric[3])]  & $(malfal_hg[1]) & [$(malfal_hg[2]), $(malfal_hg[3])] \\\\
     \\midrule
     & PIP L & PIP M & PIP L & PIP M \\\\
     \\midrule
@@ -78,6 +67,7 @@ function create_latex_table(res_rule, res_malfal)
         row = row_names[i]
         table *= "$row & $(round(PIP_tab[i,1], digits=2)) & $(round(PIP_tab[i,2], digits=2)) & $(round(PIP_tab[i,3], digits=2)) & $(round(PIP_tab[i,4], digits=2)) \\\\\n"
     end
+
 
     # End LaTeX table
     table *= """
@@ -91,5 +81,9 @@ function create_latex_table(res_rule, res_malfal)
     return table
 end
 
-println(create_latex_table(res_rule, res_malfal))
+println(create_latex_table(res_bric, res_hg))
 
+
+
+# Check \Sigma_{yx} estimates 
+reduce(hcat, map(x -> x[1, 2:3], res.Σ))' |> density
