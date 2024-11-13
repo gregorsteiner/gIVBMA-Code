@@ -51,7 +51,7 @@ function create_latex_table(res_bric, res_hg)
     \\centering
     \\begin{tabular}{lcccc}
     \\toprule
-    & \\multicolumn{2}{c}{\\textbf{BRIC}} & \\multicolumn{2}{c}{\\textbf{hyper-g/n}} \\\\
+    & \\multicolumn{2}{c}{\\textbf{BRIC}} & \\multicolumn{2}{c}{\\textbf{hyper-g/n(a=3)}} \\\\
     \\cmidrule(lr){2-3} \\cmidrule(lr){4-5}
     & Mean & 95\\% CI & Mean & 95\\% CI \\\\
     \\midrule
