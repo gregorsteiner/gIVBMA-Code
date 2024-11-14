@@ -162,7 +162,7 @@ function make_stacked_multicolumn_table(res)
     table_str *= "& \\textbf{RMSE} & \\textbf{Bias} & \\textbf{Cov.} & \\textbf{LPS} \\\\\n\\midrule\n"
 
     # Populate rows for each method for n = 50 scenarios
-    for i in 1:length(methods)
+    for i in eachindex(methods)
         table_str *= methods[i] * " & "
         table_str *= highlight(table_50_001[i, 1], best_50_001.rmse) * " & "
         table_str *= highlight(table_50_001[i, 2], best_50_001.bias) * " & "
@@ -184,7 +184,7 @@ function make_stacked_multicolumn_table(res)
     table_str *= "& \\textbf{RMSE} & \\textbf{Bias} & \\textbf{Cov.} & \\textbf{LPS} \\\\\n\\midrule\n"
 
     # Populate rows for each method for n = 500 scenarios
-    for i in 1:length(methods)
+    for i in eachindex(methods)
         table_str *= methods[i] * " & "
         table_str *= highlight(table_500_001[i, 1], best_500_001.rmse) * " & "
         table_str *= highlight(table_500_001[i, 2], best_500_001.bias) * " & "
