@@ -122,9 +122,33 @@ function bma(y::AbstractVector, X::AbstractMatrix, W::AbstractMatrix; iter::Inte
 
     end
 
-    return (α = α_store,
+    return (y = y, X = X, W = W,
+            α = α_store,
             τ = τ_store,
             β = β_store,
             σ = σ_store,
             L = L_store)
 end
+
+
+function lps_bma(bma, y_h, X_h, W_h)
+    n_h, l = size(X_h)
+    n_post = length(bma.α)
+    scores = Matrix{Float64}(undef, n_h, n_post)
+
+    # demean holdout sample using the mean over the training sample
+    X_h = X_h .- mean(bma.X; dims = 1)
+    W_h = W_h .- mean(bma.W; dims = 1)
+
+    for i in 1:n_post
+        Mean_y = bma.α[i] * ones(n_h) + X_h * bma.τ[i,:] + W_h * bma.β[i,:]
+        std_y = bma.σ[i]
+        scores[:, i] = [pdf(Normal(Mean_y[j], std_y), y_h[j]) for j in eachindex(y_h)]
+    end
+
+    scores_avg = mean(scores; dims = 2)
+    lps = -mean(log.(scores_avg))
+    return lps
+end
+
+
