@@ -21,7 +21,7 @@ function tsls(y, x, Z, W, y_h, x_h, W_h; level = 0.05)
 
     # compute lps on holdout dataset
     U_h = [ones(length(y_h)) x_h W_h]
-    lps = -logpdf(MvNormal(U_h * β_hat, σ2_hat * I), y_h)
+    lps = -logpdf(MvNormal(U_h * β_hat, σ2_hat * I), y_h) / length(y_h)
 
     return (τ = τ_hat, CI = ci, lps = lps)
 end
@@ -43,7 +43,7 @@ function tsls(y, x, Z, y_h, x_h, Z_h; level = 0.05)
 
     # compute lps on holdout dataset
     U_h = [ones(length(y_h)) x_h]
-    lps = -logpdf(MvNormal(U_h * β_hat, σ2_hat * I), y_h)
+    lps = -logpdf(MvNormal(U_h * β_hat, σ2_hat * I), y_h) / length(y_h)
 
     return (τ = τ_hat, CI = ci, lps = lps)
 end
@@ -113,7 +113,7 @@ function post_lasso(y, x, Z, W, y_h, x_h, W_h; level = 0.05, sim = true)
 
     # Compute lps on holdout dataset
     U_h = [ones(length(y_h)) x_h W_h]
-    lps = -logpdf(MvNormal(U_h * β_hat, σ2_hat * I), y_h)
+    lps = -logpdf(MvNormal(U_h * β_hat, σ2_hat * I), y_h) / length(y_h)
 
     if sim
         return (τ = τ_hat, CI = ci, lps = lps)
@@ -163,7 +163,7 @@ function jive(y, x, Z, W, y_h, x_h, W_h; level = 0.05)
 
     # Compute lps on holdout dataset
     U_h = [ones(length(y_h)) x_h W_h]
-    lps = -logpdf(MvNormal(U_h * β_hat, σ2_hat * I), y_h)
+    lps = -logpdf(MvNormal(U_h * β_hat, σ2_hat * I), y_h) / length(y_h)
 
     return (τ = τ_hat, CI = ci, lps = lps)
 end
@@ -213,7 +213,7 @@ function rjive(y, x, Z, W, y_h, x_h, W_h; level = 0.05)
 
     # Compute lps on holdout dataset
     U_h = [ones(length(y_h)) x_h W_h]
-    lps = -logpdf(MvNormal(U_h * β_hat, σ2_hat * I), y_h)
+    lps = -logpdf(MvNormal(U_h * β_hat, σ2_hat * I), y_h) / length(y_h)
 
     return (τ = τ_hat, CI = ci, lps = lps)
 end
@@ -243,7 +243,7 @@ function matsls(y, x, Z, W, y_h, x_h, W_h; level = 0.05)
 
     # Compute lps on holdout dataset
     U_h = [ones(length(y_h)) W_h x_h]
-    lps = -logpdf(MvNormal(U_h * β_hat, σ2_hat * I), y_h)
+    lps = -logpdf(MvNormal(U_h * β_hat, σ2_hat * I), y_h) / length(y_h)
 
     return (τ = τ_hat, CI = ci, lps = lps)
 end

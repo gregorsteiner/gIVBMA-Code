@@ -23,7 +23,7 @@ sisVIVE = function(y, x, Z, y_h, x_h, Z_h; level = 0.05)
 
     # Compute LPD on holdout dataset
     U_h = [ones(length(y_h)) x_h Z_h]
-    lpd = -logpdf(MvNormal(U_h * β_hat, σ2_hat * I), y_h)
+    lps = -logpdf(MvNormal(U_h * β_hat, σ2_hat * I), y_h) / length(y_h)
 
-    return (τ = τ_hat, CI = ci, lpd = lpd)
+    return (τ = τ_hat, CI = ci, lps = lps)
 end
