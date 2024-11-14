@@ -1,6 +1,6 @@
 
 
-using Distributions, LinearAlgebra, ProgressBars
+using Distributions, LinearAlgebra, ProgressBars, BSON
 
 include("bma.jl")
 using Pkg; Pkg.activate("../../IVBMA")
@@ -133,6 +133,13 @@ results_high = sim_func(m, n, c[2])
 low_endog = [results_low.RMSE' results_low.Bias' results_low.Coverage results_low.LPS']
 high_endog = [results_high.RMSE' results_high.Bias' results_high.Coverage results_high.LPS']
 
+# save results to reuse later
+bson("SimResMultEnd.bson", Dict(:low => low_endog, :high => high_endog))
+res = BSON.load("SimResMultEnd.bson")
+
+low_endog = round.(res[:low], digits = 2)
+high_endog = round.(res[:high], digits = 2)
+
 # Define row names
 row_names = [
     "BMA (BRIC)",
@@ -143,6 +150,22 @@ row_names = [
     "Sep. IVBMA (hyper-g/n)"
 ]
 
+# Helper function to bold the best value
+highlight(value, best_value) = value == best_value ? "\\textbf{$(value)}" : string(value)
+
+# Determine the best values within each scenario
+best_low_rmse = minimum(low_endog[:, 1])
+best_low_bias = minimum(low_endog[:, 2])
+best_low_covg_x1 = low_endog[argmin(abs.(low_endog[:, 3] .- 0.95))[1], 3]
+best_low_covg_x2 = low_endog[argmin(abs.(low_endog[:, 4] .- 0.95))[1], 4]
+best_low_lps = minimum(low_endog[:, 5])
+
+best_high_rmse = minimum(high_endog[:, 1])
+best_high_bias = minimum(high_endog[:, 2])
+best_high_covg_x1 = high_endog[argmin(abs.(high_endog[:, 3] .- 0.95))[1], 3]
+best_high_covg_x2 = high_endog[argmin(abs.(high_endog[:, 4] .- 0.95))[1], 4]
+best_high_lps = minimum(high_endog[:, 5])
+
 # Start building the LaTeX table as a string
 table = "\\begin{table}[h!]\n\\centering\n"
 table *= "\\begin{tabular}{lccccc}\n"
@@ -152,11 +175,15 @@ table *= "\\midrule\n"
 table *= " & RMSE & Bias & Covg. X1 & Covg. X2 & LPS \\\\\n"
 table *= "\\midrule\n"
 
-# Populate rows for Low Endogeneity
+# Populate rows for Low Endogeneity with highlighted best values
 for i in 1:6
     row = row_names[i] * " & "
-    row *= join([string(round(low_endog[i, j], digits=2)) for j in 1:5], " & ") * " \\\\\n"
-    table *= row
+    row *= highlight(low_endog[i, 1], best_low_rmse) * " & "
+    row *= highlight(low_endog[i, 2], best_low_bias) * " & "
+    row *= highlight(low_endog[i, 3], best_low_covg_x1) * " & "
+    row *= highlight(low_endog[i, 4], best_low_covg_x2) * " & "
+    row *= highlight(low_endog[i, 5], best_low_lps) * " \\\\\n"
+    global table *= row
 end
 
 # Add a midrule to separate Low and High Endogeneity sections
@@ -166,23 +193,24 @@ table *= "\\midrule\n"
 table *= " & RMSE & Bias & Covg. X1 & Covg. X2 & LPS \\\\\n"
 table *= "\\midrule\n"
 
-# Populate rows for High Endogeneity
+# Populate rows for High Endogeneity with highlighted best values
 for i in 1:6
     row = row_names[i] * " & "
-    row *= join([string(round(high_endog[i, j], digits=2)) for j in 1:5], " & ") * " \\\\\n"
-    table *= row
+    row *= highlight(high_endog[i, 1], best_high_rmse) * " & "
+    row *= highlight(high_endog[i, 2], best_high_bias) * " & "
+    row *= highlight(high_endog[i, 3], best_high_covg_x1) * " & "
+    row *= highlight(high_endog[i, 4], best_high_covg_x2) * " & "
+    row *= highlight(high_endog[i, 5], best_high_lps) * " \\\\\n"
+    global table *= row
 end
 
 # Close the table
 table *= "\\bottomrule\n"
 table *= "\\end{tabular}\n"
-table *= "\\caption{RMSE, bias, coverage, and mean log-predictive score (LPS) for low and high endogeneity scenarios over 100 simulated datasets.}\n"
+table *= "\\caption{RMSE, bias, coverage and mean LPS for low and high endogeneity scenarios over 100 simulated datasets.}\n"
 table *= "\\label{tab:SimResMultEndo}\n"
 table *= "\\end{table}"
 
 # Print the LaTeX code
 println(table)
-
-
-
 
