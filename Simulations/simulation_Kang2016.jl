@@ -1,4 +1,6 @@
 
+
+using Distributions, LinearAlgebra
 using BSON, ProgressBars
 
 include("competing_methods.jl")

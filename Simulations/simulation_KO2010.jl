@@ -1,4 +1,6 @@
 
+
+using Distributions, LinearAlgebra
 using BSON, ProgressBars
 
 
@@ -14,7 +16,7 @@ include("MA2SLS.jl")
 """
 # generate the instruments coefficients
 # Note that with p = 20 choosing c_M = 3/8 leads to an R^2 of approximately 0.1.
-function gen_instr_coeff(p::Integer, c_M::Number)
+function gen_instr_coeff(p, c_M)
     res = zeros(p)
     for i in 1:p
         if i <= p/2
@@ -24,7 +26,7 @@ function gen_instr_coeff(p::Integer, c_M::Number)
     return res
 end
 
-function gen_data_KO2010(n::Integer = 100, c_M::Number = 3/8, τ::Number = 0.1, p::Integer = 20, k::Integer = 10, c::Number = 1/2)
+function gen_data_KO2010(n = 100, c_M = 3/8, τ = 0.1, p = 20, k = 10, c = 1/2)
     V = rand(MvNormal(zeros(p+k), I), n)'
     Z = V[:,1:p]
     W = V[:,(p+1):(p+k)]
@@ -41,8 +43,8 @@ function gen_data_KO2010(n::Integer = 100, c_M::Number = 3/8, τ::Number = 0.1, 
     return (y=y, x=x, Z=Z, W=W)
 end
 
-function ivbma_res(y, x, Z, W, y_h, x_h, Z_h, W_h; g_prior)
-    res = ivbma(y, x, Z, W; g_prior = g_prior)
+function ivbma_res(y, x, Z, W, y_h, x_h, Z_h, W_h; g_prior = "BRIC", two_comp = false)
+    res = ivbma(y, x, Z, W; g_prior = g_prior, two_comp = two_comp)
     lps_int = lps(res, y_h, x_h, Z_h, W_h)
     return (
         τ = mean(res.τ),
@@ -52,7 +54,7 @@ function ivbma_res(y, x, Z, W, y_h, x_h, Z_h, W_h; g_prior)
 end
 
 function sim_func(m, n; c_M = 3/8, τ = 0.1, p = 20, k = 10, c = 1/2)
-    meths = ["IVBMA (BRIC)", "IVBMA (hyper-g/n)", "TSLS", "OTSLS", "JIVE", "RJIVE", "Post-Lasso", "MATSLS"]
+    meths = ["IVBMA (BRIC)", "IVBMA (hyper-g/n)", "IVBMA (2C)", "TSLS", "OTSLS", "JIVE", "RJIVE", "Post-Lasso", "MATSLS"]
 
     squared_error_store = Matrix(undef, m, length(meths))
     bias_store = Matrix(undef, m, length(meths))
@@ -66,6 +68,7 @@ function sim_func(m, n; c_M = 3/8, τ = 0.1, p = 20, k = 10, c = 1/2)
         res = [
             ivbma_res(d.y, d.x, d.Z, d.W, d_h.y, d_h.x, d_h.Z, d_h.W; g_prior = "BRIC"),
             ivbma_res(d.y, d.x, d.Z, d.W, d_h.y, d_h.x, d_h.Z, d_h.W; g_prior = "hyper-g/n"),
+            ivbma_res(d.y, d.x, d.Z, d.W, d_h.y, d_h.x, d_h.Z, d_h.W; g_prior = "hyper-g/n", two_comp = true),
             tsls(d.y, d.x, d.Z, d.W, d_h.y, d_h.x, d_h.W),
             tsls(d.y, d.x, d.Z[:, 1:10], d.W[:, 1:5], d_h.y, d_h.x, d_h.W[:, 1:5]),
             jive(d.y, d.x, d.Z, d.W, d_h.y, d_h.x, d_h.W),
@@ -91,8 +94,7 @@ end
 """
     Run the simulation
 """
-
-m = 100
+m = 5
 c_M = [1/8, 3/8] # In this setup we get a first stage R^2 ≈ 0.1 with c_M = 3/8 and R^2 ≈ 0.01 with c_M = 1/8.
 
 res50 = map(c -> sim_func(m, 50; c_M = c), c_M)
@@ -104,7 +106,6 @@ bson("SimResKO2010.bson", Dict(:n50 => res50, :n500 => res500))
 """
     Create Latex table
 """
-
 res = BSON.load("SimResKO2010.bson")
 
 # Helper function to format individual results into a LaTeX tabular format
@@ -151,7 +152,7 @@ function make_stacked_multicolumn_table(res)
     )
 
     # Header for each method
-    methods = ["IVBMA (BRIC)", "IVBMA (hyper-g/n)", "TSLS", "OTSLS", "JIVE", "RJIVE", "Post-Lasso", "MATSLS"]
+    methods = ["IVBMA (BRIC)", "IVBMA (hyper-g/n)", "IVBMA (2C)", "TSLS", "OTSLS", "JIVE", "RJIVE", "Post-Lasso", "MATSLS"]
 
     # Start the LaTeX table
     table_str = "\\begin{table}\n\\centering\n\\begin{tabular}{l*{8}{r}}\n\\toprule\n"
