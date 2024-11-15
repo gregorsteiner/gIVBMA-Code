@@ -3,6 +3,7 @@
 using Distributions, LinearAlgebra, ProgressBars, BSON
 
 include("bma.jl")
+include("competing_methods.jl")
 using Pkg; Pkg.activate("../../IVBMA")
 using IVBMA
 
@@ -10,8 +11,6 @@ using IVBMA
 """
     Define auxiliary functions
 """
-
-
 # logistic function
 logit(x) = exp(x) / (1+exp(x))
 
@@ -20,18 +19,18 @@ function gen_data(n, c, tau = [-1/2, 1/2], p = 10)
     Z = rand(MvNormal(zeros(p), I), n)'
     ι = ones(n)
 
-    Σ = c .^ abs.((1:3) .- (1:3)')
-
     α, τ, β = (0, tau, zeros(p))
     Γ, Δ = ([0, 0], [(ones(p)) (ones(p))])
-
-    u = rand(MvNormal([0, 0, 0], [1 c c; c 1 c; c c 1]), n)'
+    
+    Σ = c .^ abs.((1:3) .- (1:3)')
+    u = rand(MvNormal([0, 0, 0], Σ), n)'
 
     Q = ι * Γ' + Z * Δ + u[:, 2:3] 
     μ, r = (logit.(Q[:, 2]), 1)
     B_α, B_β = (μ * r, r * (1 .- μ))
     X_2 = [rand(Beta(B_α[i], B_β[i])) for i in eachindex(μ)]
-    X = [Q[:, 1] X_2]
+    X_1 = Q[:, 1]
+    X = [X_1 X_2]
 
     y = α*ι + X * τ + Z * β + u[:, 1]
 
@@ -39,28 +38,16 @@ function gen_data(n, c, tau = [-1/2, 1/2], p = 10)
 end
 
 # wrapper functions for each method
-function bma_res(y, X, Z, y_h, X_h, Z_h; dist = ["Gaussian", "BL"], g_prior = "BRIC")
+function bma_res(y, X, Z, y_h, X_h, Z_h; dist = ["Gaussian", "Gaussian"], g_prior = "BRIC")
     res = bma(y, X, Z; g_prior = g_prior)
     lps_int = lps_bma(res, y_h, X_h, Z_h)
     return (τ = res.τ, lps = lps_int)
 end
 
-function ivbma_res(y, X, Z, y_h, X_h, Z_h; dist = ["Gaussian", "BL"], g_prior = "BRIC")
+function ivbma_res(y, X, Z, y_h, X_h, Z_h; dist = ["Gaussian", "Gaussian"], g_prior = "BRIC")
     res = ivbma(y, X, Z; dist = dist, g_prior = g_prior)
     lps_int = lps(res, y_h, X_h, Z_h)
     return (τ = res.τ, lps = lps_int)
-end
-
-function ivbma_sep(y, X, Z, y_h, X_h, Z_h; dist = ["Gaussian", "BL"], g_prior = "BRIC")
-    res_1 = ivbma(y, X[:, 1], [X[:, 2] Z]; dist = dist[1:1], g_prior = g_prior)
-    res_2 = ivbma(y, X[:, 2], [X[:, 1] Z]; dist = dist[2:2], g_prior = g_prior)
-
-    lps_int = [
-        lps(res_1, y_h, X_h[:, 1:1], [X_h[:, 2] Z_h])
-        lps(res_2, y_h, X_h[:, 2:2], [X_h[:, 1] Z_h])
-    ]
-
-    return (τ = [res_1.τ res_2.τ], lps = mean(lps_int))
 end
 
 # functions to compute the performance measures
@@ -84,7 +71,7 @@ end
 
 # Wrapper function that runs the simulation
 function sim_func(m, n, c; tau = [-1/2, 1], p = 10)
-    meths = [bma_res, ivbma_res, ivbma_sep]
+    meths = [bma_res, ivbma_res]
     g_priors = ["BRIC", "hyper-g/n"]
 
     squared_error_store = Matrix(undef, m, length(meths) * length(g_priors))
@@ -145,9 +132,7 @@ row_names = [
     "BMA (BRIC)",
     "BMA (hyper-g/n)",
     "IVBMA (BRIC)",
-    "IVBMA (hyper-g/n)",
-    "Sep. IVBMA (BRIC)",
-    "Sep. IVBMA (hyper-g/n)"
+    "IVBMA (hyper-g/n)"
 ]
 
 # Helper function to bold the best value
