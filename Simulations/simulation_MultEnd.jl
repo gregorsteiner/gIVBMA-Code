@@ -155,13 +155,13 @@ highlight(value, best_value) = value == best_value ? "\\textbf{$(value)}" : stri
 
 # Determine the best values within each scenario
 best_low_rmse = minimum(low_endog[:, 1])
-best_low_bias = minimum(low_endog[:, 2])
+best_low_bias = low_endog[argmin(abs.(low_endog[:, 2]))[1], 2]
 best_low_covg_x1 = low_endog[argmin(abs.(low_endog[:, 3] .- 0.95))[1], 3]
 best_low_covg_x2 = low_endog[argmin(abs.(low_endog[:, 4] .- 0.95))[1], 4]
 best_low_lps = minimum(low_endog[:, 5])
 
 best_high_rmse = minimum(high_endog[:, 1])
-best_high_bias = minimum(high_endog[:, 2])
+best_high_bias = high_endog[argmin(abs.(high_endog[:, 2]))[1], 2]
 best_high_covg_x1 = high_endog[argmin(abs.(high_endog[:, 3] .- 0.95))[1], 3]
 best_high_covg_x2 = high_endog[argmin(abs.(high_endog[:, 4] .- 0.95))[1], 4]
 best_high_lps = minimum(high_endog[:, 5])
@@ -170,9 +170,9 @@ best_high_lps = minimum(high_endog[:, 5])
 table = "\\begin{table}[h!]\n\\centering\n"
 table *= "\\begin{tabular}{lccccc}\n"
 table *= "\\toprule\n"
-table *= "\\multicolumn{6}{c}{\\textbf{Low Endogeneity}} \\\\\n"
+table *= "\\multicolumn{6}{c}{Low Endogeneity} \\\\\n"
 table *= "\\midrule\n"
-table *= " & RMSE & Bias & Covg. X1 & Covg. X2 & LPS \\\\\n"
+table *= " & \\textbf{RMSE} & \\textbf{Bias} & \\textbf{Cov. X1} & \\textbf{Cov. X2} & \\textbf{LPS} \\\\\n"
 table *= "\\midrule\n"
 
 # Populate rows for Low Endogeneity with highlighted best values
@@ -188,9 +188,9 @@ end
 
 # Add a midrule to separate Low and High Endogeneity sections
 table *= "\\midrule\n"
-table *= "\\multicolumn{6}{c}{\\textbf{High Endogeneity}} \\\\\n"
+table *= "\\multicolumn{6}{c}{High Endogeneity} \\\\\n"
 table *= "\\midrule\n"
-table *= " & RMSE & Bias & Covg. X1 & Covg. X2 & LPS \\\\\n"
+table *= " & \\textbf{RMSE} & \\textbf{Bias} & \\textbf{Cov. X1} & \\textbf{Cov. X2} & \\textbf{LPS} \\\\\n"
 table *= "\\midrule\n"
 
 # Populate rows for High Endogeneity with highlighted best values
