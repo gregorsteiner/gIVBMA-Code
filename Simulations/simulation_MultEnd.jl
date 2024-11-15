@@ -161,7 +161,7 @@ table *= " & \\textbf{RMSE} & \\textbf{Bias} & \\textbf{Cov. X1} & \\textbf{Cov.
 table *= "\\midrule\n"
 
 # Populate rows for Low Endogeneity with highlighted best values
-for i in 1:6
+for i in eachindex(row_names)
     row = row_names[i] * " & "
     row *= highlight(low_endog[i, 1], best_low_rmse) * " & "
     row *= highlight(low_endog[i, 2], best_low_bias) * " & "
@@ -179,7 +179,7 @@ table *= " & \\textbf{RMSE} & \\textbf{Bias} & \\textbf{Cov. X1} & \\textbf{Cov.
 table *= "\\midrule\n"
 
 # Populate rows for High Endogeneity with highlighted best values
-for i in 1:6
+for i in eachindex(row_names)
     row = row_names[i] * " & "
     row *= highlight(high_endog[i, 1], best_high_rmse) * " & "
     row *= highlight(high_endog[i, 2], best_high_bias) * " & "
