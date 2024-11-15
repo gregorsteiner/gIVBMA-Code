@@ -127,25 +127,25 @@ function make_stacked_multicolumn_table(res)
     # Determine the best values within each table
     best_50_001 = (
         rmse = minimum(table_50_001[:, 1]),
-        bias = minimum(table_50_001[:, 2]),
+        bias = table_50_001[argmin(abs.(table_50_001[:, 2])), 2],
         coverage = table_50_001[argmin(abs.(table_50_001[:, 3] .- 0.95)), 3],
         lps = minimum(table_50_001[:, 4])
     )
     best_50_01 = (
         rmse = minimum(table_50_01[:, 1]),
-        bias = minimum(table_50_01[:, 2]),
+        bias = table_50_01[argmin(abs.(table_50_01[:, 2])), 2],
         coverage = table_50_01[argmin(abs.(table_50_01[:, 3] .- 0.95)), 3],
         lps = minimum(table_50_01[:, 4])
     )
     best_500_001 = (
         rmse = minimum(table_500_001[:, 1]),
-        bias = minimum(table_500_001[:, 2]),
+        bias = table_500_001[argmin(abs.(table_500_001[:, 2])), 2],
         coverage = table_500_001[argmin(abs.(table_500_001[:, 3] .- 0.95)), 3],
         lps = minimum(table_500_001[:, 4])
     )
     best_500_01 = (
         rmse = minimum(table_500_01[:, 1]),
-        bias = minimum(table_500_01[:, 2]),
+        bias = table_500_01[argmin(abs.(table_500_01[:, 2])), 2],
         coverage = table_500_01[argmin(abs.(table_500_01[:, 3] .- 0.95)), 3],
         lps = minimum(table_500_01[:, 4])
     )
