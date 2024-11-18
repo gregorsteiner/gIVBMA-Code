@@ -3,7 +3,7 @@
 using Distributions, LinearAlgebra, ProgressBars, BSON
 
 include("bma.jl")
-include("competing_methods.jl")
+
 using Pkg; Pkg.activate("../../IVBMA")
 using IVBMA
 
@@ -37,22 +37,63 @@ function gen_data(n, c, tau = [-1/2, 1/2], p = 10)
     return (y = y, X = X, Z = Z)
 end
 
+
 # wrapper functions for each method
-function bma_res(y, X, Z, y_h, X_h, Z_h; dist = ["Gaussian", "Gaussian"], g_prior = "BRIC")
+function bma_res(y, X, Z, y_h, X_h, Z_h; g_prior = "BRIC")
     res = bma(y, X, Z; g_prior = g_prior)
     lps_int = lps_bma(res, y_h, X_h, Z_h)
-    return (τ = res.τ, lps = lps_int)
+    return (
+        τ = mean(res.τ; dims = 1)[1,:],
+        CI = (
+            quantile(res.τ[:, 1], [0.025, 0.975]),
+            quantile(res.τ[:, 2], [0.025, 0.975])
+        ),
+        lps = lps_int
+    )
 end
 
 function ivbma_res(y, X, Z, y_h, X_h, Z_h; dist = ["Gaussian", "Gaussian"], g_prior = "BRIC")
     res = ivbma(y, X, Z; dist = dist, g_prior = g_prior)
     lps_int = lps(res, y_h, X_h, Z_h)
-    return (τ = res.τ, lps = lps_int)
+    return (
+        τ = mean(res.τ; dims = 1)[1,:],
+        CI = (
+            quantile(res.τ[:, 1], [0.025, 0.975]),
+            quantile(res.τ[:, 2], [0.025, 0.975])
+        ),
+        lps = lps_int
+    )
+end
+
+function tsls(y, x, Z, y_h, x_h, Z_h; level = 0.05)
+    n = length(y)
+
+    U = [ones(n) x]
+    V = [ones(n) Z]  
+    P_V = V * inv(V'V) * V'
+    
+    β_hat = inv(U' * P_V * U) * U' * P_V * y
+    τ_hat = β_hat[2:end]
+
+    residuals = y - U * β_hat
+    σ2_hat = sum(residuals.^2) / (n - size(U, 2))
+
+    cov_τ = (σ2_hat * inv(U' * P_V * U))[2:end, 2:end]
+    
+    ci = (
+        τ_hat[1] .+ [-1, 1] * quantile(Normal(0, 1), 1 - level/2) * sqrt(cov_τ[1, 1]),
+        τ_hat[2] .+ [-1, 1] * quantile(Normal(0, 1), 1 - level/2) * sqrt(cov_τ[2, 2])
+    )
+
+    # compute lps on holdout dataset
+    U_h = [ones(length(y_h)) x_h]
+    lps = -logpdf(MvNormal(U_h * β_hat, σ2_hat * I), y_h) / length(y_h)
+
+    return (τ = τ_hat, CI = ci, lps = lps)
 end
 
 # functions to compute the performance measures
-function squared_error_and_bias(τ, true_tau)
-    τ_hat = mean(τ; dims = 1)[1,:]
+function squared_error_and_bias(τ_hat, true_tau)
     return (
         se = (τ_hat - true_tau)' * (τ_hat - true_tau),
         bias = ones(length(τ_hat))' * (τ_hat - true_tau)
@@ -60,39 +101,39 @@ function squared_error_and_bias(τ, true_tau)
 end
 
 
-function coverage(τ, true_tau)
+function coverage(ci, true_tau)
     covg = Vector{Bool}(undef, length(true_tau))
     for i in eachindex(true_tau)
-        ci = quantile(τ[:, i], [0.025, 0.975])
-        covg[i] = ci[1] < true_tau[i] < ci[2] 
+        covg[i] = ci[i][1] < true_tau[i] < ci[i][2] 
     end
     return covg
 end
 
 # Wrapper function that runs the simulation
 function sim_func(m, n, c; tau = [-1/2, 1], p = 10)
-    meths = [bma_res, ivbma_res]
-    g_priors = ["BRIC", "hyper-g/n"]
+    meths = ["BMA (BRIC)", "BMA (hyper-g/n)", "BMA (BRIC)", "BMA (hyper-g/n)", "TSLS"]
 
-    squared_error_store = Matrix(undef, m, length(meths) * length(g_priors))
-    bias_store = Matrix(undef, m, length(meths) * length(g_priors))
-    times_covered = zeros(length(meths) * length(g_priors), 2)
-    lps_store = Matrix(undef, m, length(meths) * length(g_priors))
+    squared_error_store = Matrix(undef, m, length(meths))
+    bias_store = Matrix(undef, m, length(meths))
+    times_covered = zeros(length(meths), 2)
+    lps_store = Matrix(undef, m, length(meths))
 
     for i in ProgressBar(1:m)
         d = gen_data(n, c, tau, p)
         d_h = gen_data(Int(n/5), c, tau, p)
 
-        res = map(
-            (f, g_p) -> f(d.y, d.X, d.Z, d_h.y, d_h.X, d_h.Z; dist = ["Gaussian", "BL"], g_prior = g_p),
-            repeat(meths, inner = length(g_priors)),
-            repeat(g_priors, length(meths))
-        )
+        res = [
+            bma_res(d.y, d.X, d.Z, d_h.y, d_h.X, d_h.Z; g_prior = "BRIC"),
+            bma_res(d.y, d.X, d.Z, d_h.y, d_h.X, d_h.Z; g_prior = "hyper-g/n"),
+            ivbma_res(d.y, d.X, d.Z, d_h.y, d_h.X, d_h.Z; dist = ["Gaussian", "BL"], g_prior = "BRIC"),
+            ivbma_res(d.y, d.X, d.Z, d_h.y, d_h.X, d_h.Z; dist = ["Gaussian", "BL"], g_prior = "hyper-g/n"),
+            tsls(d.y, d.X, d.Z, d_h.y, d_h.X, d_h.Z),
+        ]
 
         calc = map(x -> squared_error_and_bias(x.τ, tau), res)
         squared_error_store[i,:] = map(x -> x.se, calc)
         bias_store[i,:] = map(x -> x.bias, calc)
-        covg = map(x -> coverage(x.τ, tau), res)
+        covg = map(x -> coverage(x.CI, tau), res)
         times_covered += reduce(vcat, covg')
         lps_store[i,:] = map(x -> x.lps, res)
     end
@@ -107,6 +148,7 @@ end
 """
     Run simulation
 """
+
 m, n = (100, 100)
 c = [0.3, 0.9]
 
@@ -132,7 +174,8 @@ row_names = [
     "BMA (BRIC)",
     "BMA (hyper-g/n)",
     "IVBMA (BRIC)",
-    "IVBMA (hyper-g/n)"
+    "IVBMA (hyper-g/n)",
+    "TSLS"
 ]
 
 # Helper function to bold the best value
