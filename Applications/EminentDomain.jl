@@ -19,12 +19,11 @@ Z = Z[:, Not(37)] # remove redundant level
 iters = 20000 # number of iterations
 m = [size(W, 2)/2, size(Z, 2)/5] # prior mean model size
 
-res = ivbma(y, x, Z, W; iter = iters, burn = Int(iters/5), pln = true, m = m)
-res_2c = ivbma(y, x, Z, W; iter = iters, burn = Int(iters/5), pln = true, two_comp = true, m = m)
+res = ivbma(y, x, Z, W; iter = iters, burn = Int(iters/5), dist = ["PLN"], m = m)
+res_2c = ivbma(y, x, Z, W; iter = iters, burn = Int(iters/5), dist = ["PLN"], two_comp = true, m = m)
 
-plot(res)
-plot(res_2c)
-
+density(res.τ)
+density!(res_2c.τ)
 
 # Classical estimators
 res_ols = ols(y, x, W)
@@ -44,9 +43,6 @@ pretty_table(
     backend = Val(:latex)
 )
 
-
-p = plot(res)
-savefig(p, "ED_Results.pdf")
 
 
 
