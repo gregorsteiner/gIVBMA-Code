@@ -5,11 +5,11 @@ using SpecialFunctions, Distributions, Statistics
     This corresponds to ignoring the endogeneity.
 """
 
-function post_sample(y::Vector, x::Vector, W::Matrix, g::Number)
-    n = length(y)
+function post_sample(y, X, W, g)
+    n, l = size(X)
     
     y_bar = Statistics.mean(y)
-    U = [x W]
+    U = [X W]
     δ = g / (g+1)
     U_i = [ones(n) U]
 
@@ -19,13 +19,13 @@ function post_sample(y::Vector, x::Vector, W::Matrix, g::Number)
     σ = sqrt(rand(InverseGamma((n-1)/2, s/2))) 
     α = rand(Normal(y_bar, σ/sqrt(n))) 
     β_t = rand(MvNormal(δ * inv(U'U)*U'y, Symmetric(σ^2 * δ * inv(U'U))))
-    τ = β_t[1]
-    β = β_t[2:end]
+    τ = β_t[1:l]
+    β = β_t[(l+1):end]
     
     return (α = α, τ = τ, β = β, σ = σ)
 end
 
-function marginal_likelihood(y::Vector, W::Matrix, g::Number)
+function marginal_likelihood(y, W, g)
     n = size(W, 1)
     k_j = size(W, 2)
     
@@ -38,7 +38,7 @@ function marginal_likelihood(y::Vector, W::Matrix, g::Number)
     return res
 end
 
-function model_prior(x::Vector, k::Integer; a::Number = 1, m::Number = floor(k/2))
+function model_prior(x, k; a = 1, m = floor(k/2))
     b = (k - m) / m 
     kj = sum(x)
     
@@ -47,59 +47,108 @@ function model_prior(x::Vector, k::Integer; a::Number = 1, m::Number = floor(k/2
     return res
 end
 
-function bma(y::AbstractVector, x::AbstractVector, Z::AbstractMatrix, W::AbstractMatrix, iter::Integer = 2000, burn::Integer = 1000)
+hyper_g_n(g; a = 3, n = 100) = (a-2)/(2*n) * (1 + g/n)^(-a/2)
 
-    n = size(W, 1)
-    k = size(W, 2)
-    g = max(n, k^2)
-    m = floor(k/2)
+function adjust_variance(curr_variance, acc_prob, desired_acc_prob, iter)
+    log_variance = log(curr_variance) + iter^(-0.6) * (acc_prob - desired_acc_prob)
+    return exp(log_variance)
+end
 
-    x = x .- mean(x)
+function bma(y::AbstractVector, X::AbstractMatrix, W::AbstractMatrix; iter::Integer = 2000, burn::Integer = 1000, g_prior = "BRIC", dist = "Gaussian")
+    n, k = size(W)
+    l = size(X, 2)
+    
+    X = X .- mean(X; dims = 1)
     W = W .- mean(W; dims = 1)
 
+    g = max(n, k^2)
+    g_random = (g_prior == "hyper-g/n")
+    if g_random
+        proposal_variance_g = 0.01
+    end
 
-    α_store = zeros(iter)
-    τ_store = zeros(iter)
-    β_store = zeros(iter, k)
-    σ_store = zeros(iter)
+    m = floor(k/2)
 
-    incl = Array{Bool}(undef, (iter), k)
-    incl[1,:] = repeat([true], k)
+    L = sample([true, false], k, replace = true)
+    α, τ, β, σ = (0, zeros(l), zeros(k)[L], 1)
 
+    nsave = iter - burn
+    α_store = zeros(nsave)
+    τ_store = zeros(nsave, l)
+    β_store = zeros(nsave, k)
+    σ_store = zeros(nsave)
+    L_store = Array{Bool}(undef, nsave, k)
 
     for i in 2:(iter)
         # draw proposal
+        Prop = copy(L)
         ind = sample(1:k) # draw index to permute
-        Curr = incl[i-1, :] # get current inclusion
-        Prop = incl[i-1, :]
         Prop[ind] = !Prop[ind] # and permute sampled index
 
         # get ratio of marginal likelihoods times priors (in logs)
-        Post_Prop = marginal_likelihood(y, [x W[:, Prop]], g) + model_prior(Prop, k; a = 1, m = m)
-        Post_Curr = marginal_likelihood(y, [x W[:, Curr]], g) + model_prior(Curr, k; a = 1, m = m)
-
+        acc = min(1, exp(
+            marginal_likelihood(y, [X W[:, Prop]], g) + model_prior(Prop, k; a = 1, m = m) -
+            (marginal_likelihood(y, [X W[:, L]], g) + model_prior(L, k; a = 1, m = m))
+        ))
         # MH step
-        alpha = min(1, exp(Post_Prop - Post_Curr))
-        if alpha > rand(Uniform())
-            incl[i,:] = Prop
-            draw = post_sample(y, x, W[:, Prop], g)
-            α_store[i] = draw.α
-            τ_store[i] = draw.τ
-            β_store[i,Prop] = draw.β
-            σ_store[i] = draw.σ
-        else
-            incl[i,:] = Curr
-            draw = post_sample(y, x, W[:, Curr], g)
-            α_store[i] = draw.α
-            τ_store[i] = draw.τ
-            β_store[i,Curr] = draw.β
-            σ_store[i] = draw.σ
+        if rand() < acc
+            L = Prop
         end
+
+        # update g
+        if g_random
+            prop = rand(LogNormal(log(g), sqrt(proposal_variance_g)))
+            acc = min(1, exp(
+                marginal_likelihood(y, [X W[:, L]], prop) + log(hyper_g_n(prop; a = 3, n = n)) + log(prop) - 
+                (marginal_likelihood(y, [X W[:, L]], g) + log(hyper_g_n(g; a = 3, n = n)) + log(g))
+            ))
+            if rand() < acc
+                g = prop
+            end
+            proposal_variance_g = adjust_variance(proposal_variance_g, acc, 0.234, i)
+        end
+
+        # draw parameters
+        α, τ, β, σ = post_sample(y, X, W[:, L], g)
+
+        if i > burn
+            α_store[i-burn] = α
+            τ_store[i-burn, :] = τ
+            β_store[i-burn, L] = β
+            σ_store[i-burn] = σ
+            L_store[i-burn, :] = L
+        end
+
+
     end
 
-    return (α = α_store[(burn+1):end],
-            τ = τ_store[(burn+1):end],
-            β = β_store[(burn+1):end,:],
-            σ = σ_store[(burn+1):end],
-            L = incl[(burn+1):end,:])
+    return (y = y, X = X, W = W,
+            α = α_store,
+            τ = τ_store,
+            β = β_store,
+            σ = σ_store,
+            L = L_store)
 end
+
+
+function lps_bma(bma, y_h, X_h, W_h)
+    n_h, l = size(X_h)
+    n_post = length(bma.α)
+    scores = Matrix{Float64}(undef, n_h, n_post)
+
+    # demean holdout sample using the mean over the training sample
+    X_h = X_h .- mean(bma.X; dims = 1)
+    W_h = W_h .- mean(bma.W; dims = 1)
+
+    for i in 1:n_post
+        Mean_y = bma.α[i] * ones(n_h) + X_h * bma.τ[i,:] + W_h * bma.β[i,:]
+        std_y = bma.σ[i]
+        scores[:, i] = [pdf(Normal(Mean_y[j], std_y), y_h[j]) for j in eachindex(y_h)]
+    end
+
+    scores_avg = mean(scores; dims = 2)
+    lps = -mean(log.(scores_avg))
+    return lps
+end
+
+
