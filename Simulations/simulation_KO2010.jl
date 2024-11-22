@@ -200,7 +200,7 @@ function make_stacked_multicolumn_table(res)
 
     # Finish the table
     table_str *= "\\bottomrule\n\\end{tabular}\n"
-    table_str *= "\\caption{RMSE, bias, credible (or confidence) interval coverage (nominal 95\\%) and mean LPS (lower is better) on 100 simulated datasets. RMSE and Bias are based on the posterior mean of IVBMA.}\n"
+    table_str *= "\\caption{Simulation results with many weak instruments based on 100 simulated datasets.}\n"
     table_str *= "\\label{tab:KO2010_Sim}\n\\end{table}"
 
     return table_str

@@ -154,7 +154,7 @@ function make_stacked_multicolumn_table(res)
     # Start the LaTeX table
     table_str = "\\begin{table}\n\\centering\n\\begin{tabular}{l*{8}{r}}\n\\toprule\n"
     table_str *= " & \\multicolumn{8}{c}{n = 50} \\\\\n"
-    table_str *= " & \\multicolumn{4}{c}{R^2_f = 0.01} & \\multicolumn{4}{c}{R^2_f = 0.1} \\\\\n"
+    table_str *= " & \\multicolumn{4}{c}{R^2_f = 0.1} & \\multicolumn{4}{c}{R^2_f = 0.2} \\\\\n"
     table_str *= "\\cmidrule(lr){2-5}\\cmidrule(lr){6-9}\n"
     table_str *= " & \\textbf{RMSE} & \\textbf{Bias} & \\textbf{Cov.} & \\textbf{LPS} "
     table_str *= "& \\textbf{RMSE} & \\textbf{Bias} & \\textbf{Cov.} & \\textbf{LPS} \\\\\n\\midrule\n"
@@ -176,7 +176,7 @@ function make_stacked_multicolumn_table(res)
     # Midrule for clarity before starting the n = 500 part
     table_str *= "\\midrule\n"
     table_str *= " & \\multicolumn{8}{c}{n = 500} \\\\\n"
-    table_str *= " & \\multicolumn{4}{c}{R^2_f = 0.01} & \\multicolumn{4}{c}{R^2_f = 0.1} \\\\\n"
+    table_str *= " & \\multicolumn{4}{c}{R^2_f = 0.1} & \\multicolumn{4}{c}{R^2_f = 0.2} \\\\\n"
     table_str *= "\\cmidrule(lr){2-5}\\cmidrule(lr){6-9}\n"
     table_str *= " & \\textbf{RMSE} & \\textbf{Bias} & \\textbf{Cov.} & \\textbf{LPS} "
     table_str *= "& \\textbf{RMSE} & \\textbf{Bias} & \\textbf{Cov.} & \\textbf{LPS} \\\\\n\\midrule\n"
@@ -197,7 +197,7 @@ function make_stacked_multicolumn_table(res)
 
     # Finish the table
     table_str *= "\\bottomrule\n\\end{tabular}\n"
-    table_str *= "\\caption{RMSE, bias, credible (or confidence) interval coverage (nominal 95\\%) and mean LPS (lower is better) on 100 simulated datasets with a count endogenous variable. RMSE and Bias are based on the posterior mean of IVBMA.}\n"
+    table_str *= "\\caption{Simulation results with a Poisson endogenous variable with many instruments based on 100 simulated datasets.}\n"
     table_str *= "\\label{tab:PLN_Sim}\n\\end{table}"
 
     return table_str
