@@ -50,11 +50,10 @@ using AdaptiveRejectionSampling, Distributions, LinearAlgebra
 f(x) = jp_ν(x, 15)
 
 # Build the sampler and simulate 10,000 samples
-sampler = RejectionSampler(f, (2.0, Inf), max_segments = 5)
+sampler = RejectionSampler(f, (3.0, Inf))
 ν = run_sampler!(sampler, 100000)
-
+density(ν)
 res = map(x -> rand(InverseWishart(x, [1 0; 0 1]))[1, 2], ν)
-density(res)
 
-
-
+p_σ12 = density(res, xlim = (-10, 10), label = "", xlabel = "σ_12", ylabel = "Density")
+savefig(p_σ12, "Implied_Prior_Sigma12.pdf")
