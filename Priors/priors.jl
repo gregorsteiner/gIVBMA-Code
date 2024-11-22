@@ -45,15 +45,31 @@ savefig(p, "Priors/Hyperprior_nu.pdf")
 
 
 # What is the implied prior on \sigma_{12}?
-using AdaptiveRejectionSampling, Distributions, LinearAlgebra
+using Turing
 
-f(x) = jp_ν(x, 15)
+@model function ν_prior(p)
+        ν ~ Uniform(1.5, 100)
+        Turing.@addlogprob! log(jp_ν(ν, p)) 
+end
 
-# Build the sampler and simulate 10,000 samples
-sampler = RejectionSampler(f, (3.0, Inf))
-ν = run_sampler!(sampler, 100000)
-density(ν)
-res = map(x -> rand(InverseWishart(x, [1 0; 0 1]))[1, 2], ν)
+function sample_σ12(p)
+        chain = sample(ν_prior(p), NUTS(), 100000)
+        ν = chain[:ν]
+        res = map(x -> rand(InverseWishart(x, [1 0; 0 1]))[1, 2], ν)
+        return res[-1/4 .< res .< 1/4] # for plotting purposes only return non-extreme values
+end
 
-p_σ12 = density(res, xlim = (-10, 10), label = "", xlabel = "σ_12", ylabel = "Density")
+pp = [2, 10, 25]
+res = map(p -> sample_σ12(p), pp)
+
+labels = permutedims("p = " .* string.(pp))
+p_σ12 = density(res, label = labels, xlabel = "σ_12", ylabel = "Density")
+
+res_ν3 = map(x -> x[1,2], rand(InverseWishart(3, [1 0; 0 1]), 100000))
+density!(res_ν3[-1/2 .< res_ν3 .< 1/2], label = "Fixed ν = 3", xlim = (-0.25, 0.25))
+res_ν10 = map(x -> x[1,2], rand(InverseWishart(10, [1 0; 0 1]), 100000))
+density!(res_ν10[-1/2 .< res_ν10 .< 1/2], label = "Fixed ν = 10", xlim = (-0.25, 0.25))
 savefig(p_σ12, "Implied_Prior_Sigma12.pdf")
+
+
+
