@@ -14,8 +14,7 @@ dropmissing!(df)
 # create model objects
 y = df.bwght
 x = df.cigs
-Z = modelmatrix(@formula(cigs ~ cigtax + cigprice + fatheduc + motheduc + parity + male + white), df)
-
+Z = modelmatrix(@formula(cigs ~ cigprice * cigtax * fatheduc * motheduc * parity * male * white), df)
 
 # fit model
 res_bric = ivbma(y, x, Z; dist = ["PLN", "PLN"], g_prior = "BRIC")
@@ -25,5 +24,4 @@ density(res_bric.τ)
 mean(res_bric.L, dims = 1)
 mean(res_bric.M, dims = 1)
 
-exp(-0.005)
-
+mean(res_bric.L, dims = 1)[argmax(mean(res_bric.L, dims = 1))]
