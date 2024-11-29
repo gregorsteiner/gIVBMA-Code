@@ -14,14 +14,23 @@ dropmissing!(df)
 # create model objects
 y = df.bwght
 x = df.cigs
-Z = modelmatrix(@formula(cigs ~ cigprice * cigtax * fatheduc * motheduc * parity * male * white), df)
+formula = @formula(cigs ~ cigprice * cigtax * fatheduc * motheduc * parity * male * white)
+Z = modelmatrix(formula, df)
+
 
 # fit model
-res_bric = ivbma(y, x, Z; dist = ["PLN", "PLN"], g_prior = "BRIC")
+iters = 10000
+res_pln = ivbma(y, x, Z; iter = iters, burn = Int(iters/5), dist = ["PLN", "PLN"], g_prior = "BRIC")
+res_gauss = ivbma(log.(y), x, Z; iter = iters, burn = Int(iters/5), dist = ["Gaussian", "PLN"], g_prior = "BRIC")
 
-density(res_bric.τ)
+p = density([res_pln.τ res_gauss.τ], fill = true, alpha = 0.7,
+            label = ["Poisson" "Gaussian"], xlabel = "τ", ylabel = "Density")
+savefig(p, "Posterior_Birthweight.pdf")
 
-mean(res_bric.L, dims = 1)
-mean(res_bric.M, dims = 1)
+# check instruments
+ind_pln = sortperm(mean(res_pln.M, dims = 1)[1,:], rev = true)
+ind_gauss = sortperm(mean(res_gauss.M, dims = 1)[1,:], rev = true)
 
-mean(res_bric.L, dims = 1)[argmax(mean(res_bric.L, dims = 1))]
+formula.rhs[ind_pln][1:5]
+formula.rhs[ind_gauss][1:5]
+
