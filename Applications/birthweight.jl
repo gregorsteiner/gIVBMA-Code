@@ -19,13 +19,15 @@ Z = modelmatrix(formula, df)
 
 
 # fit model
-iters = 10000
-res_pln = ivbma(y, x, Z; iter = iters, burn = Int(iters/5), dist = ["PLN", "PLN"], g_prior = "BRIC")
-res_gauss = ivbma(log.(y), x, Z; iter = iters, burn = Int(iters/5), dist = ["Gaussian", "PLN"], g_prior = "BRIC")
+iters = 5000
+res_pln = ivbma(y, x, Z; iter = iters, burn = Int(iters/5), dist = ["PLN", "PLN"], g_prior = "hyper-g/n", ν = 3)
+res_gauss = ivbma(log.(y), x, Z; iter = iters, burn = Int(iters/5), dist = ["Gaussian", "PLN"], g_prior = "hyper-g/n", ν = 3)
 
-p = density([res_pln.τ res_gauss.τ], fill = true, alpha = 0.7,
-            label = ["Poisson" "Gaussian"], xlabel = "τ", ylabel = "Density")
+p = plot([rbw(res_pln); rbw(res_gauss)], fill = true, alpha = 0.7,
+         label = ["Poisson" "Gaussian"], xlabel = "τ", ylabel = "Density")
 savefig(p, "Posterior_Birthweight.pdf")
+
+
 
 # check instruments
 ind_pln = sortperm(mean(res_pln.M, dims = 1)[1,:], rev = true)
