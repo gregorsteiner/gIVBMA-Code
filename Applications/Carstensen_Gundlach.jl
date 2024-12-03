@@ -28,8 +28,8 @@ y = df.lngdpc
 X = [df.rule df.malfal]
 Z = Matrix(df[:, needed_columns[Not(1:3)]])
 
-res_bric = ivbma(y, X, Z; iter = iters, burn = Int(iters/5), dist = ["Gaussian", "BL"], g_prior = "BRIC", ν = 4)
-res_hg = ivbma(y, X, Z; iter = iters, burn = Int(iters/5), dist = ["Gaussian", "BL"], g_prior = "hyper-g/n", ν = 4)
+res_bric = ivbma(y, X, Z; iter = iters, burn = Int(iters/5), dist = ["Gaussian", "Gaussian", "BL"], g_prior = "BRIC", ν = 4)
+res_hg = ivbma(y, X, Z; iter = iters, burn = Int(iters/5), dist = ["Gaussian", "Gaussian", "BL"], g_prior = "hyper-g/n", ν = 4)
 
 # Create table summarising the results
 function create_latex_table(res_bric, res_hg)
@@ -37,12 +37,15 @@ function create_latex_table(res_bric, res_hg)
 
     # Unpack tau estimates for rule and malfal models
     post_mean_and_ci(x) = round.((mean(x), quantile(x, 0.025), quantile(x, 0.975)), digits=2)
-    rule_bric = post_mean_and_ci(res_bric.τ[:, 1])
-    malfal_bric = post_mean_and_ci(res_bric.τ[:, 2])
+    rbw_bric = rbw(res_bric)
+    rule_bric = post_mean_and_ci(rbw_bric[1])
+    malfal_bric = post_mean_and_ci(rbw_bric[2])
     Σ_12_bric = post_mean_and_ci(map(x -> x[1,2], res_bric.Σ))
     Σ_13_bric = post_mean_and_ci(map(x -> x[1,3], res_bric.Σ))
-    rule_hg = post_mean_and_ci(res_hg.τ[:, 1])
-    malfal_hg = post_mean_and_ci(res_hg.τ[:, 2])
+
+    rbw_hg = rbw(res_hg)
+    rule_hg = post_mean_and_ci(rbw_hg[1])
+    malfal_hg = post_mean_and_ci(rbw_hg[2])
     Σ_12_hg = post_mean_and_ci(map(x -> x[1,2], res_hg.Σ))
     Σ_13_hg = post_mean_and_ci(map(x -> x[1,3], res_hg.Σ))
 
@@ -61,8 +64,8 @@ function create_latex_table(res_bric, res_hg)
     \\midrule
      rule & $(rule_bric[1]) &  [$(rule_bric[2]), $(rule_bric[3])]  & $(rule_hg[1]) & [$(rule_hg[2]), $(rule_hg[3])] \\\\
      malfal & $(malfal_bric[1]) &  [$(malfal_bric[2]), $(malfal_bric[3])]  & $(malfal_hg[1]) & [$(malfal_hg[2]), $(malfal_hg[3])] \\\\
-     \\Sigma_{12} & $(Σ_12_bric[1]) &  [$(Σ_12_bric[2]), $(Σ_12_bric[3])]  & $(Σ_12_hg[1]) & [$(Σ_12_hg[2]), $(Σ_12_hg[3])] \\\\
-     \\Sigma_{13} & $(Σ_13_bric[1]) &  [$(Σ_13_bric[2]), $(Σ_13_bric[3])]  & $(Σ_13_hg[1]) & [$(Σ_13_hg[2]), $(Σ_13_hg[3])] \\\\
+     \\sigma_{12} & $(Σ_12_bric[1]) &  [$(Σ_12_bric[2]), $(Σ_12_bric[3])]  & $(Σ_12_hg[1]) & [$(Σ_12_hg[2]), $(Σ_12_hg[3])] \\\\
+     \\sigma_{13} & $(Σ_13_bric[1]) &  [$(Σ_13_bric[2]), $(Σ_13_bric[3])]  & $(Σ_13_hg[1]) & [$(Σ_13_hg[2]), $(Σ_13_hg[3])] \\\\
     \\midrule
     & PIP L & PIP M & PIP L & PIP M \\\\
     \\midrule
@@ -88,4 +91,3 @@ function create_latex_table(res_bric, res_hg)
 end
 
 println(create_latex_table(res_bric, res_hg))
-
