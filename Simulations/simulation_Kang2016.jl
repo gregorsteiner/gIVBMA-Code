@@ -31,8 +31,8 @@ function ivbma_res(y, x, Z, y_h, x_h, Z_h; g_prior)
     res = ivbma(y, x, Z; g_prior = g_prior)
     lps_int = lps(res, y_h, x_h, Z_h)
     return (
-        τ = mean(res.τ),
-        CI = quantile(res.τ, [0.025, 0.975]),
+        τ = mean(rbw(res)[1]),
+        CI = quantile(rbw(res)[1], [0.025, 0.975]),
         lps = lps_int
     )
 end

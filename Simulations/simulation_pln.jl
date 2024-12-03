@@ -42,11 +42,11 @@ function gen_data(n::Integer = 100, c_M::Number = 3/8, τ::Number = 0.1, p::Inte
 end
 
 function ivbma_res(y, x, Z, W, y_h, x_h, Z_h, W_h; g_prior = "BRIC", two_comp = false)
-    res = ivbma(y, x, Z, W; g_prior = g_prior, two_comp = two_comp, dist = ["PLN"])
+    res = ivbma(y, x, Z, W; g_prior = g_prior, two_comp = two_comp, dist = ["Gaussian", "PLN"])
     lps_int = lps(res, y_h, x_h, Z_h, W_h)
     return (
-        τ = mean(res.τ),
-        CI = quantile(res.τ, [0.025, 0.975]),
+        τ = mean(rbw(res)[1]),
+        CI = quantile(rbw(res)[1], [0.025, 0.975]),
         lps = lps_int
     )
 end
