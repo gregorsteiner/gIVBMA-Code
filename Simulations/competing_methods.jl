@@ -1,5 +1,5 @@
 
-using Distributions, LinearAlgebra, GLMNet, JuMP
+using Distributions, LinearAlgebra, GLMNet, JuMP, RCall
 
 """
     This function implements a TSLS estimator to compare our approach to.
@@ -248,4 +248,74 @@ function matsls(y, x, Z, W, y_h, x_h, W_h; level = 0.05)
     return (τ = τ_hat, CI = ci, lps = lps)
 end
 
+
+"""
+    This function implements the sisVIVE estimator by Kang et al (2016), JASA.
+"""
+sisVIVE = function(y, x, Z, y_h, x_h, Z_h; level = 0.05)
+    n = length(y)
+
+    @rput y x Z
+    R"res = sisVIVE::cv.sisVIVE(y, x, Z, K = 5)"
+    @rget res
+    
+    β_hat = [0; res[:beta]; res[:alpha]]
+    τ_hat = β_hat[2]
+
+    U = [ones(n) x Z]
+    residuals = y - U * β_hat
+    σ2_hat = sum(residuals.^2) / (n - size(U, 2))
+
+    # sisVIVE does not provide standard errors so we set the coverage to zero
+    ci = [τ_hat, τ_hat]
+
+    # Compute LPD on holdout dataset
+    U_h = [ones(length(y_h)) x_h Z_h]
+    lps = -logpdf(MvNormal(U_h * β_hat, σ2_hat * I), y_h) / length(y_h)
+
+    return (τ = τ_hat, CI = ci, lps = lps)
+end
+
+
+"""
+    Implement the IVBMA procedure of Karl & Lenkoski based on their R package.
+"""
+function ivbma_kl(y, X, Z, W, y_h, X_h, Z_h, W_h)
+    n, l = (size(X, 1), size(X, 2))
+
+    @rput y X Z W
+    R"""
+    source("ivbma.R")
+    res = ivbma(y, X, Z, cbind(rep(1, nrow(W)), W), print.every = 1e5)
+    """
+    @rget res
+    # Store posterior sample
+    α = res[:rho][:, l+1]
+    τ = res[:rho][:, 1:l]
+    β = res[:rho][:, (l+2):end]
+    Λ = res[:lambda]
+    Σ = res[:Sigma]
+
+    # Compute LPS on holdout data
+    n_h = length(y_h)
+    scores = Matrix{Float64}(undef, n_h, length(α))
+    for i in eachindex(α)
+        H = X_h - [ones(n_h) Z_h W_h] * Λ[:, :, i]
+        mean_y = α[i] * ones(n_h) + X_h[:, :] * τ[i, :] + W_h * β[i, :] + H * inv(Σ[2:end, 2:end, i]) * Σ[2:end, 1, i]
+        σ_y_x = Σ[1, 1, i] - Σ[2:end, 1, i]' * inv(Σ[2:end, 2:end, i]) * Σ[2:end, 1, i]
+
+        scores[:, i] = [pdf(Normal(mean_y[j], sqrt(σ_y_x)), y_h[j]) for j in eachindex(y_h)]
+    end
+    scores_avg = mean(scores; dims = 2)
+    lps = -mean(log.(scores_avg))
+
+    return (
+        τ = mean(τ),
+        CI = quantile(τ, [0.025, 0.975]),
+        lps = lps
+    )
+end
+
+# alternative method for invalid instruments
+ivbma_kl(y, X, Z, y_h, X_h, Z_h) = ivbma_kl(y, X, Matrix{Float64}(undef, length(y), 0), Z, y_h, X_h, Matrix{Float64}(undef, length(y), 0), Z_h)
 

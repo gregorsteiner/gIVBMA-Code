@@ -4,7 +4,6 @@ using Distributions, LinearAlgebra
 using BSON, ProgressBars
 
 include("competing_methods.jl")
-include("sisVIVE.jl")
 
 using Pkg; Pkg.activate("../../IVBMA")
 using IVBMA
