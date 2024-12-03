@@ -37,7 +37,7 @@ function ivbma_res(y, x, Z, y_h, x_h, Z_h; g_prior)
 end
 
 function sim_func(m, n; τ = 0.1, p = 10, s = 2, c = 0.5)
-    meths = ["IVBMA (BRIC)", "IVBMA (hyper-g/n)", "TSLS", "OTSLS", "sisVIVE"]
+    meths = ["IVBMA (BRIC)", "IVBMA (hyper-g/n)", "IVBMA (KL)", "TSLS", "OTSLS", "sisVIVE"]
 
     squared_error_store = Matrix(undef, m, length(meths))
     bias_store = Matrix(undef, m, length(meths))
@@ -51,6 +51,7 @@ function sim_func(m, n; τ = 0.1, p = 10, s = 2, c = 0.5)
         res = [
             ivbma_res(d.y, d.x, d.Z, d_h.y, d_h.x, d_h.Z; g_prior = "BRIC"),
             ivbma_res(d.y, d.x, d.Z, d_h.y, d_h.x, d_h.Z; g_prior = "hyper-g/n"),
+            ivbma_kl(d.y, d.x, d.Z, d_h.y, d_h.x, d_h.Z),
             tsls(d.y, d.x, d.Z, d_h.y, d_h.x, d_h.Z),
             tsls(d.y, d.x, d.Z[:, (s+1):p], d.Z[:, 1:s], d_h.y, d_h.x, d_h.Z[:, 1:s]),
             sisVIVE(d.y, d.x, d.Z, d_h.y, d_h.x, d_h.Z)
@@ -129,7 +130,7 @@ function make_stacked_multicolumn_table(res)
     )
 
     # Header for each method
-    methods = ["IVBMA (BRIC)", "IVBMA (hyper-g/n)", "TSLS", "O-TSLS", "sisVIVE"]
+    methods = ["gIVBMA (BRIC)", "gIVBMA (hyper-g/n)", "IVBMA (KL)", "TSLS", "O-TSLS", "sisVIVE"]
 
     # Start the LaTeX table
     table_str = "\\begin{table}\n\\centering\n\\begin{tabular}{l*{8}{r}}\n\\toprule\n"

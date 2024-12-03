@@ -3,6 +3,7 @@
 using Distributions, LinearAlgebra, ProgressBars, BSON
 
 include("bma.jl")
+include("competing_methods.jl")
 
 using Pkg; Pkg.activate("../../IVBMA")
 using IVBMA
@@ -65,7 +66,7 @@ function ivbma_res(y, X, Z, y_h, X_h, Z_h; dist = ["Gaussian", "Gaussian"], g_pr
     )
 end
 
-function tsls(y, x, Z, y_h, x_h, Z_h; level = 0.05)
+function tsls(y, x, Z, y_h, x_h; level = 0.05)
     n = length(y)
 
     U = [ones(n) x]
@@ -111,7 +112,7 @@ end
 
 # Wrapper function that runs the simulation
 function sim_func(m, n, c; tau = [-1/2, 1], p = 10)
-    meths = ["BMA (BRIC)", "BMA (hyper-g/n)", "BMA (BRIC)", "BMA (hyper-g/n)", "TSLS"]
+    meths = ["BMA (BRIC)", "BMA (hyper-g/n)", "IVBMA (BRIC)", "IVBMA (hyper-g/n)", "IVBMA (KL)", "TSLS"]
 
     squared_error_store = Matrix(undef, m, length(meths))
     bias_store = Matrix(undef, m, length(meths))
@@ -127,7 +128,8 @@ function sim_func(m, n, c; tau = [-1/2, 1], p = 10)
             bma_res(d.y, d.X, d.Z, d_h.y, d_h.X, d_h.Z; g_prior = "hyper-g/n"),
             ivbma_res(d.y, d.X, d.Z, d_h.y, d_h.X, d_h.Z; dist = ["Gaussian", "Gaussian", "BL"], g_prior = "BRIC"),
             ivbma_res(d.y, d.X, d.Z, d_h.y, d_h.X, d_h.Z; dist = ["Gaussian", "Gaussian", "BL"], g_prior = "hyper-g/n"),
-            tsls(d.y, d.X, d.Z, d_h.y, d_h.X, d_h.Z),
+            ivbma_kl(d.y, d.X, d.Z, d_h.y, d_h.X, d_h.Z),
+            tsls(d.y, d.X, d.Z, d_h.y, d_h.X),
         ]
 
         calc = map(x -> squared_error_and_bias(x.τ, tau), res)
@@ -148,7 +150,6 @@ end
 """
     Run simulation
 """
-
 m, n = (100, 100)
 c = [0.3, 0.9]
 

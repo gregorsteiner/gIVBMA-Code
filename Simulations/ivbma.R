@@ -575,7 +575,6 @@ ivbma <- function(Y,X,Z,W,s=1e3,b = round(s/10),
     save.loc <- 1
     next.save <- which.save[save.loc]
     ##--------------------------------
-    print(paste("Running IVBMA for",s,"iterations",Sys.time()))
     for(i in 1:s)
       {
         if(i %% print.every == 0)print(paste("On Iteration", i,Sys.time()))
