@@ -174,8 +174,9 @@ high_endog = round.(res[:high], digits = 2)
 row_names = [
     "BMA (BRIC)",
     "BMA (hyper-g/n)",
-    "IVBMA (BRIC)",
-    "IVBMA (hyper-g/n)",
+    "gIVBMA (BRIC)",
+    "gIVBMA (hyper-g/n)",
+    "IVBMA (KL)",
     "TSLS"
 ]
 
