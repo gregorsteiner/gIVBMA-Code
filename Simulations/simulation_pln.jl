@@ -42,17 +42,17 @@ function gen_data(n::Integer = 100, c_M::Number = 3/8, τ::Number = 0.1, p::Inte
 end
 
 function ivbma_res(y, x, Z, W, y_h, x_h, Z_h, W_h; g_prior = "BRIC", two_comp = false)
-    res = ivbma(y, x, Z, W; g_prior = g_prior, two_comp = two_comp, dist = ["PLN"])
+    res = ivbma(y, x, Z, W; g_prior = g_prior, two_comp = two_comp, dist = ["Gaussian", "PLN"])
     lps_int = lps(res, y_h, x_h, Z_h, W_h)
     return (
-        τ = mean(res.τ),
-        CI = quantile(res.τ, [0.025, 0.975]),
+        τ = mean(rbw(res)[1]),
+        CI = quantile(rbw(res)[1], [0.025, 0.975]),
         lps = lps_int
     )
 end
 
 function sim_func(m, n; c_M = 3/8, τ = 0.1, p = 20, k = 10, c = 1/2)
-    meths = ["IVBMA (BRIC)", "IVBMA (hyper-g/n)", "IVBMA (2C)", "TSLS", "OTSLS", "JIVE", "RJIVE", "Post-Lasso", "MATSLS"]
+    meths = ["gIVBMA (BRIC)", "gIVBMA (hyper-g/n)", "gIVBMA (2C)", "IVBMA (KL)", "TSLS", "OTSLS", "JIVE", "RJIVE", "Post-Lasso", "MATSLS"]
 
     squared_error_store = Matrix(undef, m, length(meths))
     bias_store = Matrix(undef, m, length(meths))
@@ -67,6 +67,7 @@ function sim_func(m, n; c_M = 3/8, τ = 0.1, p = 20, k = 10, c = 1/2)
             ivbma_res(d.y, d.x, d.Z, d.W, d_h.y, d_h.x, d_h.Z, d_h.W; g_prior = "BRIC"),
             ivbma_res(d.y, d.x, d.Z, d.W, d_h.y, d_h.x, d_h.Z, d_h.W; g_prior = "hyper-g/n"),
             ivbma_res(d.y, d.x, d.Z, d.W, d_h.y, d_h.x, d_h.Z, d_h.W; g_prior = "hyper-g/n", two_comp = true),
+            ivbma_kl(d.y, d.x, d.Z, d.W, d_h.y, d_h.x, d_h.Z, d_h.W),
             tsls(d.y, d.x, d.Z, d.W, d_h.y, d_h.x, d_h.W),
             tsls(d.y, d.x, d.Z[:, 1:10], d.W[:, 1:5], d_h.y, d_h.x, d_h.W[:, 1:5]),
             jive(d.y, d.x, d.Z, d.W, d_h.y, d_h.x, d_h.W),
