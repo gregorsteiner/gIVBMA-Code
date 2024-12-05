@@ -150,7 +150,7 @@ function make_stacked_multicolumn_table(res)
     )
 
     # Header for each method
-    methods = ["IVBMA (BRIC)", "IVBMA (hyper-g/n)", "IVBMA (2C)", "TSLS", "OTSLS", "JIVE", "RJIVE", "Post-Lasso", "MATSLS"]
+    methods = ["gIVBMA (BRIC)", "gIVBMA (hyper-g/n)", "gIVBMA (2C)", "IVBMA (KL)", "TSLS", "OTSLS", "JIVE", "RJIVE", "Post-Lasso", "MATSLS"]
 
     # Start the LaTeX table
     table_str = "\\begin{table}\n\\centering\n\\begin{tabular}{l*{8}{r}}\n\\toprule\n"
@@ -198,7 +198,7 @@ function make_stacked_multicolumn_table(res)
 
     # Finish the table
     table_str *= "\\bottomrule\n\\end{tabular}\n"
-    table_str *= "\\caption{Simulation results with a Poisson endogenous variable with many instruments based on 100 simulated datasets.}\n"
+    table_str *= "\\caption{Simulation results with a Poisson endogenous variable with many instruments based on 100 simulated datasets. The best values in each column are printed in bold.}\n"
     table_str *= "\\label{tab:PLN_Sim}\n\\end{table}"
 
     return table_str

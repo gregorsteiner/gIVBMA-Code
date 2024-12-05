@@ -237,7 +237,7 @@ end
 # Close the table
 table *= "\\bottomrule\n"
 table *= "\\end{tabular}\n"
-table *= "\\caption{Simulation results with two endogenous variables (one Gaussian and one Beta) based on 100 simulated datasets.}\n"
+table *= "\\caption{Simulation results with two endogenous variables (one Gaussian and one Beta) based on 100 simulated datasets. The best values in each column are printed in bold.}\n"
 table *= "\\label{tab:SimResMultEndo}\n"
 table *= "\\end{table}"
 
