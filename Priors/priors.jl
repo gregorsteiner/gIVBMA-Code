@@ -1,5 +1,5 @@
 
-using StatsPlots, Integrals, SpecialFunctions
+using StatsPlots, Integrals, SpecialFunctions, Distributions
 
 # Inspect marginal prior of α for different values of ν and g
 plot(Normal(0, 10), xlim = (-20, 20), label = "N(0, 10^2)", xlabel = "α")
@@ -72,4 +72,23 @@ density!(res_ν10[-1/2 .< res_ν10 .< 1/2], label = "Fixed ν = 10", xlim = (-0.
 savefig(p_σ12, "Implied_Prior_Sigma12.pdf")
 
 
+# What about a shifted Exponential prior on nu?
+function sample_σ12(λ, m = 100000)
+        ν = rand(Exponential(λ), m) .+ 2
+        Σ = map(x -> rand(InverseWishart(x, [1 0; 0 1])), ν)
+        res = map(x -> x[1, 2] / x[2, 2], Σ)
+        return res[-10 .< res .< 10] # for plotting purposes only return non-extreme values
+end
+
+
+p_exp = density(sample_σ12(0.1), xlim = (-5, 5),
+                label = "Exponential(0.1)",
+                xlabel = "σ₁₂ / σ₂₂",
+                ylabel = "Density")
+density!(sample_σ12(1), label = "Exponential(1)")
+res_ν3 = map(x -> x[1,2]/x[2, 2], rand(InverseWishart(3, [1 0; 0 1]), 100000))
+density!(res_ν3[-10 .< res_ν3 .< 10], label = "fixed ν = 3")
+res_ν5 = map(x -> x[1,2]/x[2, 2], rand(InverseWishart(5, [1 0; 0 1]), 100000))
+density!(res_ν5[-10 .< res_ν5 .< 10], label = "fixed ν = 5")
+savefig(p_exp, "Implied_prior_with_exponential.pdf")
 
