@@ -1,6 +1,10 @@
 
 using DataFrames, CSV, InvertedIndices, Statistics, StatsPlots, Random
 
+"""
+    Load and prepare dataset.
+"""
+
 df = CSV.read("Carstensen_Gundlach.csv", DataFrame, missingstring="-999.999")
 
 # change column names to match paper
@@ -15,6 +19,10 @@ df = df[:, needed_columns]
 # drop all observations with missing values in the variables
 dropmissing!(df)
 
+"""
+    Fit full IVBMA models.
+"""
+
 # Run analysis
 using Pkg; Pkg.activate("../../IVBMA")
 using IVBMA
@@ -28,8 +36,8 @@ y = df.lngdpc
 X = [df.rule df.malfal]
 Z = Matrix(df[:, needed_columns[Not(1:3)]])
 
-res_bric = ivbma(y, X, Z; iter = iters, burn = Int(iters/5), dist = ["Gaussian", "Gaussian", "BL"], g_prior = "BRIC", ν = 4)
-res_hg = ivbma(y, X, Z; iter = iters, burn = Int(iters/5), dist = ["Gaussian", "Gaussian", "BL"], g_prior = "hyper-g/n", ν = 4)
+res_bric = ivbma(y, X, Z; iter = iters, burn = Int(iters/5), dist = ["Gaussian", "Gaussian", "BL"], g_prior = "BRIC")
+res_hg = ivbma(y, X, Z; iter = iters, burn = Int(iters/5), dist = ["Gaussian", "Gaussian", "BL"], g_prior = "hyper-g/n")
 
 # Create table summarising the results
 function create_latex_table(res_bric, res_hg)
@@ -91,3 +99,46 @@ function create_latex_table(res_bric, res_hg)
 end
 
 println(create_latex_table(res_bric, res_hg))
+
+
+"""
+    LPS analysis.
+"""
+
+include("../Simulations/competing_methods.jl")
+
+function loocv(y, X, Z)
+    n = length(y)
+    
+    meths = ["gIVBMA (BRIC)", "gIVBMA (hyper-g/n)", "IVBMA (KL)", "TSLS"]
+    lps_store = zeros(n, length(meths))
+    
+    for i in 1:n
+        # Split the data: i-th observation is the test set
+        y_train = vcat(y[1:i-1], y[i+1:end])
+        X_train = vcat(X[1:i-1, :], X[i+1:end, :])
+        Z_train = vcat(Z[1:i-1, :], Z[i+1:end, :])
+        
+        y_test, X_test, Z_test = (y[i:i], X[i:i, :], Z[i:i, :])
+        
+        # Fit the model on the training set
+        fit_bric = ivbma(y_train, X_train, Z_train; dist = ["Gaussian", "Gaussian", "BL"], g_prior = "BRIC")
+        fit_hg = ivbma(y_train, X_train, Z_train; dist = ["Gaussian", "Gaussian", "BL"], g_prior = "hyper-g/n")
+        
+        # Compute LPS for the current test observation
+        lps_store[i, :] = [
+            lps(fit_bric, y_test, X_test, Z_test),
+            lps(fit_hg, y_test, X_test, Z_test),
+            ivbma_kl(y_train, X_train, Z_train, y_test, X_test, Z_test).lps,
+            tsls(y_train, X_train, Z_train, y_test, X_test, Z_test).lps
+        ]
+    end
+    
+    # Return the average LPS across all observations
+    #avg_lps = total_lps ./ n
+    return round.(lps_store, digits = 3)
+end
+
+res = loocv(y, X, Z)
+boxplot(res, label = permutedims(["gIVBMA (BRIC)", "gIVBMA (hyper-g/n)", "IVBMA (KL)", "TSLS"]))
+mean(res, dims = 1)
