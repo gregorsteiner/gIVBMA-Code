@@ -135,7 +135,6 @@ function loocv(y, X, Z)
     end
     
     # Return the average LPS across all observations
-    #avg_lps = total_lps ./ n
     return round.(lps_store, digits = 3)
 end
 
