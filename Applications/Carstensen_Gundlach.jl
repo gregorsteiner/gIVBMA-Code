@@ -165,12 +165,11 @@ function create_latex_table(res, methods)
     end
     
     # Close the table
-    table *= "\\bottomrule\n\\end{tabular}\n\\caption{Mean log-predictive scores across leave-one-out iterations.}\n\\label{tab:LOOCV_LPS}\n\\end{table}"
+    table *= "\\bottomrule\n\\end{tabular}\n\\caption{The mean LPS calculated across all iterations of leave-one-out cross-validation, where each iteration uses a single observation as the holdout set and the rest as the training set.}\n\\label{tab:LOOCV_LPS}\n\\end{table}"
     
     return table
 end
 
-# Example usage
 methods = ["gIVBMA (BRIC)", "gIVBMA (hyper-g/n)", "IVBMA (KL)", "TSLS"]
 latex_table = create_latex_table(res, methods)
 println(latex_table)

@@ -37,12 +37,6 @@ plot([res_pln.τ res_gauss.τ])
 mean(res_pln.M, dims = 1)
 mean(res_gauss.M, dims = 1)
 
-ind_pln = sortperm(mean(res_pln.M, dims = 1)[1,:], rev = true)
-ind_gauss = sortperm(mean(res_gauss.M, dims = 1)[1,:], rev = true)
-
-formula.rhs[ind_pln][1:5]
-formula.rhs[ind_gauss][1:5]
-
 
 # check endogeneity
 map(x -> x[1, 2]/x[2,2], res_pln.Σ) |> density
@@ -58,7 +52,7 @@ include("../Simulations/competing_methods.jl")
 function kfold_cv(y, X, Z, W; k=5)
     n = length(y)
     fold_size = Int(floor(n / k))
-    meths = ["gIVBMA (PLNB)", "gIVBMA (Gaussian)", "IVBMA (KL)", "TSLS"]
+    meths = ["gIVBMA (PLN)", "gIVBMA (Gaussian)", "IVBMA (KL)", "TSLS"]
     lps_store = zeros(k, length(meths))
 
     # Generate indices for each fold
@@ -91,4 +85,36 @@ function kfold_cv(y, X, Z, W; k=5)
 end
 
 res = kfold_cv(y, x, Z, W; k = 5)
-mean(res, dims = 1)
+
+function create_latex_table(res, methods)
+    # Calculate means and standard deviations
+    means = round.(mean(res, dims=1)[:], digits = 3)
+    
+    # Find the index of the lowest mean value
+    min_index = argmin(means)
+    
+    # Start building the LaTeX table with booktabs style
+    table = "\\begin{table}[H]\n\\centering\n\\begin{tabular}{lc}\n"
+    table *= "\\toprule\n"
+    table *= "Method & Mean LPS \\\\\n"
+    table *= "\\midrule\n"
+    
+    # Fill in the table rows
+    for i in eachindex(methods)
+        mean_std = string(means[i])
+        if i == min_index
+            # Highlight the minimum value
+            mean_std = "\\textbf{" * mean_std * "}"
+        end
+        table *= methods[i] * " & " * mean_std * " \\\\\n"
+    end
+    
+    # Close the table
+    table *= "\\bottomrule\n\\end{tabular}\n\\caption{The mean LPS calculated over each fold of the birthweight data in a 5-fold cross-validation procedure.}\n\\label{tab:5_fold_LPS}\n\\end{table}"
+    
+    return table
+end
+
+methods = ["gIVBMA (PLN)", "gIVBMA (Gaussian)", "IVBMA (KL)", "TSLS"]
+latex_table = create_latex_table(res, methods)
+println(latex_table)
