@@ -139,5 +139,38 @@ function loocv(y, X, Z)
 end
 
 res = loocv(y, X, Z)
-boxplot(res, label = permutedims(["gIVBMA (BRIC)", "gIVBMA (hyper-g/n)", "IVBMA (KL)", "TSLS"]))
-mean(res, dims = 1)
+
+
+function create_latex_table(res, methods)
+    # Calculate means and standard deviations
+    means = round.(mean(res, dims=1)[:], digits = 3)
+    
+    # Find the index of the lowest mean value
+    min_index = argmin(means)
+    
+    # Start building the LaTeX table with booktabs style
+    table = "\\begin{table}[H]\n\\centering\n\\begin{tabular}{lc}\n"
+    table *= "\\toprule\n"
+    table *= "Method & Mean LPS \\\\\n"
+    table *= "\\midrule\n"
+    
+    # Fill in the table rows
+    for i in eachindex(methods)
+        mean_std = string(means[i])
+        if i == min_index
+            # Highlight the minimum value
+            mean_std = "\\textbf{" * mean_std * "}"
+        end
+        table *= methods[i] * " & " * mean_std * " \\\\\n"
+    end
+    
+    # Close the table
+    table *= "\\bottomrule\n\\end{tabular}\n\\caption{Mean log-predictive scores across leave-one-out iterations.}\n\\label{tab:LOOCV_LPS}\n\\end{table}"
+    
+    return table
+end
+
+# Example usage
+methods = ["gIVBMA (BRIC)", "gIVBMA (hyper-g/n)", "IVBMA (KL)", "TSLS"]
+latex_table = create_latex_table(res, methods)
+println(latex_table)
