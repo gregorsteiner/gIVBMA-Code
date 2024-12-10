@@ -73,11 +73,12 @@ function kfold_cv(y, X, Z, W; k=5)
         fit_gauss = ivbma(log.(y_train), X_train, Z_train, W_train; dist = ["Gaussian", "PLN"], g_prior = "hyper-g/n")
 
         # Compute LPS for the current test observations
+        corr = mean(log.(y_test)) # add correction for the log-linear models to get them to the same scale
         lps_store[fold, :] = [
             lps(fit_pln, y_test, X_test, Z_test, W_test),
-            lps(fit_gauss, log.(y_test), X_test, Z_test, W_test),
-            ivbma_kl(log.(y_train), X_train, Z_train, W_train, log.(y_test), X_test, Z_test, W_test).lps,
-            tsls(log.(y_train), X_train, Z_train, W_train, log.(y_test), X_test, W_test).lps
+            lps(fit_gauss, log.(y_test), X_test, Z_test, W_test) + corr,
+            ivbma_kl(log.(y_train), X_train, Z_train, W_train, log.(y_test), X_test, Z_test, W_test).lps + corr,
+            tsls(log.(y_train), X_train, Z_train, W_train, log.(y_test), X_test, W_test).lps + corr
         ]
     end
 
