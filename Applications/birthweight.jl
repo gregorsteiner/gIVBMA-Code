@@ -23,8 +23,8 @@ W = modelmatrix(@formula(cigs ~ (parity + male + white) + (cigprice + cigtax + f
 
 # fit model
 iters = 5000
-res_pln = ivbma(y, x, Z, W; iter = iters, burn = Int(iters/5), dist = ["PLN", "PLN"], g_prior = "hyper-g/n", ν = 3)
-res_gauss = ivbma(log.(y), x, Z, W; iter = iters, burn = Int(iters/5), dist = ["Gaussian", "PLN"], g_prior = "hyper-g/n", ν = 3)
+res_pln = ivbma(y, x, Z, W; iter = iters, burn = Int(iters/5), dist = ["PLN", "PLN"], g_prior = "hyper-g/n")
+res_gauss = ivbma(log.(y), x, Z, W; iter = iters, burn = Int(iters/5), dist = ["Gaussian", "PLN"], g_prior = "hyper-g/n")
 
 p = plot([rbw(res_pln); rbw(res_gauss)], alpha = 0.7, linewidth = 2.5,
          label = ["Poisson" "Gaussian"], xlabel = "τ", ylabel = "Density")
