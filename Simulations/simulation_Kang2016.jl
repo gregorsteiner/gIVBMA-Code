@@ -26,7 +26,7 @@ function gen_data_Kang2016(n, τ, p, s, c)
     return (y=y, x=x, Z=Z)
 end
 
-function ivbma_res(y, x, Z, y_h, x_h, Z_h; g_prior)
+function ivbma_flex(y, x, Z, y_h, x_h, Z_h; g_prior)
     res = ivbma(y, x, Z; g_prior = g_prior)
     lps_int = lps(res, y_h, x_h, Z_h)
     return (
@@ -36,8 +36,18 @@ function ivbma_res(y, x, Z, y_h, x_h, Z_h; g_prior)
     )
 end
 
+function ivbma_fix(y, x, Z, W, y_h, x_h, Z_h, W_h; g_prior)
+    res = ivbma(y, x, Z, W; g_prior = g_prior)
+    lps_int = lps(res, y_h, x_h, Z_h, W_h)
+    return (
+        τ = mean(rbw(res)[1]),
+        CI = quantile(rbw(res)[1], [0.025, 0.975]),
+        lps = lps_int
+    )
+end
+
 function sim_func(m, n; τ = 0.1, p = 10, s = 2, c = 0.5)
-    meths = ["IVBMA (BRIC)", "IVBMA (hyper-g/n)", "IVBMA (KL)", "TSLS", "OTSLS", "sisVIVE"]
+    meths = ["gIVBMA (BRIC)", "gIVBMA (hyper-g/n)", "O-gIVBMA (hyper-g/n)", "IVBMA (KL)", "TSLS", "O-TSLS", "sisVIVE"]
 
     squared_error_store = Matrix(undef, m, length(meths))
     bias_store = Matrix(undef, m, length(meths))
@@ -49,8 +59,9 @@ function sim_func(m, n; τ = 0.1, p = 10, s = 2, c = 0.5)
         d_h = gen_data_Kang2016(Int(n/5), τ, p, s, c)
 
         res = [
-            ivbma_res(d.y, d.x, d.Z, d_h.y, d_h.x, d_h.Z; g_prior = "BRIC"),
-            ivbma_res(d.y, d.x, d.Z, d_h.y, d_h.x, d_h.Z; g_prior = "hyper-g/n"),
+            ivbma_flex(d.y, d.x, d.Z, d_h.y, d_h.x, d_h.Z; g_prior = "BRIC"),
+            ivbma_flex(d.y, d.x, d.Z, d_h.y, d_h.x, d_h.Z; g_prior = "hyper-g/n"),
+            ivbma_fix(d.y, d.x, d.Z[:, (s+1):p], d.Z[:, 1:s], d_h.y, d_h.x, d_h.Z[:, (s+1):p], d_h.Z[:, 1:s]; g_prior = "hyper-g/n"),
             ivbma_kl(d.y, d.x, d.Z, d_h.y, d_h.x, d_h.Z),
             tsls(d.y, d.x, d.Z, d_h.y, d_h.x, d_h.Z),
             tsls(d.y, d.x, d.Z[:, (s+1):p], d.Z[:, 1:s], d_h.y, d_h.x, d_h.Z[:, 1:s]),
@@ -130,7 +141,7 @@ function make_stacked_multicolumn_table(res)
     )
 
     # Header for each method
-    methods = ["gIVBMA (BRIC)", "gIVBMA (hyper-g/n)", "IVBMA (KL)", "TSLS", "O-TSLS", "sisVIVE"]
+    methods = ["gIVBMA (BRIC)", "gIVBMA (hyper-g/n)", "O-gIVBMA (hyper-g/n)", "IVBMA (KL)", "TSLS", "O-TSLS", "sisVIVE"]
 
     # Start the LaTeX table
     table_str = "\\begin{table}\n\\centering\n\\begin{tabular}{l*{8}{r}}\n\\toprule\n"
@@ -147,14 +158,14 @@ function make_stacked_multicolumn_table(res)
         table_str *= highlight(table_50_001[i, 2], best_50_001.bias) * " & "
         
         # Replace 0 with NA in coverage column only for sisVIVE (last row, i == 5)
-        cov_50_001 = (i == 5 && table_50_001[i, 3] == 0) ? "NA" : highlight(table_50_001[i, 3], best_50_001.coverage)
+        cov_50_001 = (methods[i] == "sisVIVE" && table_50_001[i, 3] == 0) ? "NA" : highlight(table_50_001[i, 3], best_50_001.coverage)
         table_str *= cov_50_001 * " & "
         
         table_str *= highlight(table_50_001[i, 4], best_50_001.lps) * " & "
         table_str *= highlight(table_50_01[i, 1], best_50_01.rmse) * " & "
         table_str *= highlight(table_50_01[i, 2], best_50_01.bias) * " & "
         
-        cov_50_01 = (i == 5 && table_50_01[i, 3] == 0) ? "NA" : highlight(table_50_01[i, 3], best_50_01.coverage)
+        cov_50_01 = (methods[i] == "sisVIVE" && table_50_01[i, 3] == 0) ? "NA" : highlight(table_50_01[i, 3], best_50_01.coverage)
         table_str *= cov_50_01 * " & "
         
         table_str *= highlight(table_50_01[i, 4], best_50_01.lps) * " \\\\\n"
@@ -174,14 +185,14 @@ function make_stacked_multicolumn_table(res)
         table_str *= highlight(table_500_001[i, 1], best_500_001.rmse) * " & "
         table_str *= highlight(table_500_001[i, 2], best_500_001.bias) * " & "
         
-        cov_500_001 = (i == 5 && table_500_001[i, 3] == 0) ? "NA" : highlight(table_500_001[i, 3], best_500_001.coverage)
+        cov_500_001 = (methods[i] == "sisVIVE" && table_500_001[i, 3] == 0) ? "NA" : highlight(table_500_001[i, 3], best_500_001.coverage)
         table_str *= cov_500_001 * " & "
         
         table_str *= highlight(table_500_001[i, 4], best_500_001.lps) * " & "
         table_str *= highlight(table_500_01[i, 1], best_500_01.rmse) * " & "
         table_str *= highlight(table_500_01[i, 2], best_500_01.bias) * " & "
         
-        cov_500_01 = (i == 5 && table_500_01[i, 3] == 0) ? "NA" : highlight(table_500_01[i, 3], best_500_01.coverage)
+        cov_500_01 = (methods[i] == "sisVIVE" && table_500_01[i, 3] == 0) ? "NA" : highlight(table_500_01[i, 3], best_500_01.coverage)
         table_str *= cov_500_01 * " & "
         
         table_str *= highlight(table_500_01[i, 4], best_500_01.lps) * " \\\\\n"
