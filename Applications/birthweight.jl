@@ -1,6 +1,6 @@
 
 
-using DataFrames, CSV, InvertedIndices, Random, LinearAlgebra, 
+using DataFrames, CSV, InvertedIndices, Random, LinearAlgebra 
 using StatsModels, Distributions, ProgressBars
 using CairoMakie
 using Pkg; Pkg.activate("../../IVBMA")
