@@ -11,8 +11,7 @@ y3 = pdf.(Exponential(5), xx .- 2)
 function sample_σ12(λ, m = 100000)
     ν = rand(Exponential(λ), m) .+ 2
     Σ = map(x -> rand(InverseWishart(x, [1 0; 0 1])), ν)
-    res = map(x -> x[1, 2] / x[2, 2], Σ)
-    return res[-10 .< res .< 10] # for plotting purposes only return non-extreme values
+    return map(x -> x[1, 2] / x[2, 2], Σ)
 end
 
 # Generate data for the second plot
@@ -24,7 +23,7 @@ data_ν5 = map(x -> x[1, 2] / x[2, 2], rand(InverseWishart(5, [1 0; 0 1]), 10000
 
 # Helper function for computing density
 function density_line(data)
-    data = data[-5 .< data .< 5]
+    data = data[-5 .< data .< 5] # exclude extreme values from the plot
     kde = KernelDensity.kde(data)
     return kde.x, kde.density
 end
@@ -32,11 +31,14 @@ end
 # Create the figure and axis
 fig = Figure()
 
+# set up colour palette
+cols = Makie.wong_colors()
+
 # First plot: Exponential priors
 ax1 = Axis(fig[1, 1], xlabel = "ν", ylabel = "Density")
-lines!(ax1, xx, y1, label = "Exponential(0.1)")
-lines!(ax1, xx, y2, label = "Exponential(1)")
-lines!(ax1, xx, y3, label = "Exponential(5)")
+lines!(ax1, xx, y1, label = "Exponential(0.1)", color = cols[1])
+lines!(ax1, xx, y2, label = "Exponential(1)", color = cols[2])
+lines!(ax1, xx, y3, label = "Exponential(5)", color = cols[3])
 
 # Second plot: Line-only Density of σᵧₓ / σₓₓ
 ax2 = Axis(fig[1, 2], xlabel = "σᵧₓ / σₓₓ", ylabel = "Density")
@@ -46,11 +48,11 @@ x3, d3 = density_line(data_exp3)
 x4, d4 = density_line(data_ν3)
 x5, d5 = density_line(data_ν5)
 
-lines!(ax2, x1, d1, label = "Exponential(0.1)")
-lines!(ax2, x2, d2, label = "Exponential(1)")
-lines!(ax2, x3, d3, label = "Exponential(5)")
-lines!(ax2, x4, d4, label = "ν = 3")
-lines!(ax2, x5, d5, label = "ν = 5")
+lines!(ax2, x1, d1, label = "Exponential(0.1)", color = cols[1])
+lines!(ax2, x2, d2, label = "Exponential(1)", color = cols[2])
+lines!(ax2, x3, d3, label = "Exponential(5)", color = cols[3])
+lines!(ax2, x4, d4, label = "ν = 3", color = cols[5], linestyle = :dash)
+lines!(ax2, x5, d5, label = "ν = 5", color = cols[6], linestyle = :dash)
 
 # Add a shared legend below the plots
 Legend(fig[2, 1:2], ax2, orientation = :horizontal)
