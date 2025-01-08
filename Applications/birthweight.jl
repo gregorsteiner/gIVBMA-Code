@@ -1,7 +1,8 @@
 
 
-using DataFrames, CSV, InvertedIndices, Random, LinearAlgebra, Distributions
-using StatsModels, StatsPlots, ProgressBars
+using DataFrames, CSV, InvertedIndices, Random, LinearAlgebra, 
+using StatsModels, Distributions, ProgressBars
+using CairoMakie
 using Pkg; Pkg.activate("../../IVBMA")
 using IVBMA
 
@@ -26,12 +27,22 @@ iters = 5000
 res_pln = ivbma(y, x, Z, W; iter = iters, burn = Int(iters/5), dist = ["PLN", "PLN"], g_prior = "hyper-g/n")
 res_gauss = ivbma(log.(y), x, Z, W; iter = iters, burn = Int(iters/5), dist = ["Gaussian", "PLN"], g_prior = "hyper-g/n")
 
-p = plot([rbw(res_pln); rbw(res_gauss)], alpha = 0.7, linewidth = 2.5,
-         label = ["Poisson" "Gaussian"], xlabel = "τ", ylabel = "Density")
-savefig(p, "Posterior_Birthweight.pdf")
+# save plot of posteriors
+p = Figure()
+ax = Axis(p[1, 1], xlabel = "τ", ylabel = "Density")
+CairoMakie.lines!(
+    ax, rbw(res_pln)[1],
+    color = Makie.wong_colors()[1],
+    label = "Poisson"
+    )
+CairoMakie.lines!(
+    ax, rbw(res_gauss)[1],
+    color = Makie.wong_colors()[2],
+    label = "Gaussian"
+    )
+axislegend()
+save("Posterior_Birthweight.pdf", p)
 
-
-plot([res_pln.τ res_gauss.τ])
 
 # check instruments
 mean(res_pln.M, dims = 1)
