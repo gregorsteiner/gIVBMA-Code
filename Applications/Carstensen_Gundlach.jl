@@ -24,8 +24,8 @@ dropmissing!(df)
 """
 
 # Run analysis
-using Pkg; Pkg.activate("../../IVBMA")
-using IVBMA
+using Pkg; Pkg.activate("../../gIVBMA")
+using gIVBMA
 
 Random.seed!(42)
 # number of iterations
@@ -36,8 +36,8 @@ y = df.lngdpc
 X = [df.rule df.malfal]
 Z = Matrix(df[:, needed_columns[Not(1:3)]])
 
-res_bric = ivbma(y, X, Z; iter = iters, burn = Int(iters/5), dist = ["Gaussian", "Gaussian", "BL"], g_prior = "BRIC")
-res_hg = ivbma(y, X, Z; iter = iters, burn = Int(iters/5), dist = ["Gaussian", "Gaussian", "BL"], g_prior = "hyper-g/n")
+res_bric = givbma(y, X, Z; iter = iters, burn = Int(iters/5), dist = ["Gaussian", "Gaussian", "BL"], g_prior = "BRIC")
+res_hg = givbma(y, X, Z; iter = iters, burn = Int(iters/5), dist = ["Gaussian", "Gaussian", "BL"], g_prior = "hyper-g/n")
 
 # Create table summarising the results
 function create_latex_table(res_bric, res_hg)
@@ -106,11 +106,12 @@ println(create_latex_table(res_bric, res_hg))
 """
 
 include("../Simulations/competing_methods.jl")
+include("../Simulations/bma.jl")
 
 function loocv(y, X, Z)
     n = length(y)
     
-    meths = ["gIVBMA (BRIC)", "gIVBMA (hyper-g/n)", "IVBMA (KL)", "TSLS"]
+    meths = ["gIVBMA (BRIC)", "gIVBMA (hyper-g/n)", "IVBMA (KL)", "BMA (hyper-g/n)", "TSLS"]
     lps_store = zeros(n, length(meths))
     
     for i in 1:n
@@ -122,14 +123,16 @@ function loocv(y, X, Z)
         y_test, X_test, Z_test = (y[i:i], X[i:i, :], Z[i:i, :])
         
         # Fit the model on the training set
-        fit_bric = ivbma(y_train, X_train, Z_train; dist = ["Gaussian", "Gaussian", "BL"], g_prior = "BRIC")
-        fit_hg = ivbma(y_train, X_train, Z_train; dist = ["Gaussian", "Gaussian", "BL"], g_prior = "hyper-g/n")
+        fit_bric = givbma(y_train, X_train, Z_train; dist = ["Gaussian", "Gaussian", "BL"], g_prior = "BRIC")
+        fit_hg = givbma(y_train, X_train, Z_train; dist = ["Gaussian", "Gaussian", "BL"], g_prior = "hyper-g/n")
+        fit_bma = bma(y_train, X_train, Z_train; g_prior = "hyper-g/n")
         
         # Compute LPS for the current test observation
         lps_store[i, :] = [
             lps(fit_bric, y_test, X_test, Z_test),
             lps(fit_hg, y_test, X_test, Z_test),
             ivbma_kl(y_train, X_train, Z_train, y_test, X_test, Z_test).lps,
+            lps_bma(fit_bma, y_test, X_test, Z_test),
             tsls(y_train, X_train, Z_train, y_test, X_test, Z_test).lps
         ]
     end
@@ -170,6 +173,6 @@ function create_latex_table(res, methods)
     return table
 end
 
-methods = ["gIVBMA (BRIC)", "gIVBMA (hyper-g/n)", "IVBMA (KL)", "TSLS"]
+methods = ["gIVBMA (BRIC)", "gIVBMA (hyper-g/n)", "IVBMA (KL)", "BMA (hyper-g/n)", "TSLS"]
 latex_table = create_latex_table(res, methods)
 println(latex_table)
