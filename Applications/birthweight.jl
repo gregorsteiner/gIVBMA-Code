@@ -3,8 +3,8 @@
 using DataFrames, CSV, InvertedIndices, Random, LinearAlgebra 
 using StatsModels, Distributions, ProgressBars
 using CairoMakie
-using Pkg; Pkg.activate("../../IVBMA")
-using IVBMA
+using Pkg; Pkg.activate("../../gIVBMA")
+using gIVBMA
 
 """
     Fit full IVBMA models.
