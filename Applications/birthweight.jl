@@ -32,34 +32,25 @@ res_bma = bma(log.(y), x[:, 1:1], W; iter = iters, burn = Int(iters/5), g_prior 
 
 # save plot of posteriors
 p = Figure()
-ax = Axis(p[1, 1], xlabel = "τ", ylabel = "Density")
-CairoMakie.lines!(
-    ax, rbw(res_pln)[1],
-    color = Makie.wong_colors()[1],
-    label = "gIVBMA (Poisson)"
-    )
-CairoMakie.lines!(
-    ax, rbw(res_gauss)[1],
-    color = Makie.wong_colors()[2],
-    label = "gIVBMA (Gaussian)"
-    )
-CairoMakie.lines!(
-    ax, rbw_bma(res_bma)[1],
-    color = Makie.wong_colors()[3],
-    label = "BMA (Gaussian)"
-    )
-axislegend()
+ax1, ax2 = (Axis(p[1, 1], xlabel = "τ", ylabel = "Density"), Axis(p[1, 2], xlabel = "σᵧₓ / σₓₓ", ylabel = "Density"))
+
+lines!(ax1, rbw(res_pln)[1], label = "gIVBMA (Poisson)")
+lines!(ax1, rbw(res_gauss)[1], label = "gIVBMA (Gaussian)", color = Makie.wong_colors()[2])
+lines!(ax1, rbw_bma(res_bma)[1], label = "BMA (Gaussian)", color = Makie.wong_colors()[3])
+
+density!(ax2, map(x -> x[1, 2]/x[2, 2], res_pln.Σ), label = "gIVBMA (Poisson)", color = (Makie.wong_colors()[1], 0.0), strokecolor = Makie.wong_colors()[1], strokewidth = 2, strokearound = true)
+density!(ax2, map(x -> x[1, 2]/x[2, 2], res_gauss.Σ), label = "gIVBMA (Gaussian)", color = (Makie.wong_colors()[2], 0.0), strokecolor = Makie.wong_colors()[2], strokewidth = 2, strokearound = true)
+
+Legend(p[2, 1:2], ax1, orientation = :horizontal)
+p
 save("Posterior_Birthweight.pdf", p)
+
+
 
 
 # check instruments
 mean(res_pln.M, dims = 1)
 mean(res_gauss.M, dims = 1)
-
-
-# check endogeneity
-map(x -> x[1, 2]/x[2,2], res_pln.Σ) |> density
-map(x -> x[1, 2]/x[2,2], res_gauss.Σ) |> density
 
 
 """
