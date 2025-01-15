@@ -6,6 +6,8 @@ using CairoMakie
 using Pkg; Pkg.activate("../../gIVBMA")
 using gIVBMA
 
+include("../Simulations/bma.jl")
+
 """
     Fit full IVBMA models.
 """
@@ -24,8 +26,9 @@ W = modelmatrix(@formula(cigs ~ (parity + male + white) + (cigprice + cigtax + f
 
 # fit model
 iters = 5000
-res_pln = ivbma(y, x, Z, W; iter = iters, burn = Int(iters/5), dist = ["PLN", "PLN"], g_prior = "hyper-g/n")
-res_gauss = ivbma(log.(y), x, Z, W; iter = iters, burn = Int(iters/5), dist = ["Gaussian", "PLN"], g_prior = "hyper-g/n")
+res_pln = givbma(y, x, Z, W; iter = iters, burn = Int(iters/5), dist = ["PLN", "PLN"], g_prior = "hyper-g/n")
+res_gauss = givbma(log.(y), x, Z, W; iter = iters, burn = Int(iters/5), dist = ["Gaussian", "PLN"], g_prior = "hyper-g/n")
+res_bma = bma(log.(y), x[:, 1:1], W; iter = iters, burn = Int(iters/5), g_prior = "hyper-g/n")
 
 # save plot of posteriors
 p = Figure()
@@ -33,12 +36,17 @@ ax = Axis(p[1, 1], xlabel = "τ", ylabel = "Density")
 CairoMakie.lines!(
     ax, rbw(res_pln)[1],
     color = Makie.wong_colors()[1],
-    label = "Poisson"
+    label = "gIVBMA (Poisson)"
     )
 CairoMakie.lines!(
     ax, rbw(res_gauss)[1],
     color = Makie.wong_colors()[2],
-    label = "Gaussian"
+    label = "gIVBMA (Gaussian)"
+    )
+CairoMakie.lines!(
+    ax, rbw_bma(res_bma)[1],
+    color = Makie.wong_colors()[3],
+    label = "BMA (Gaussian)"
     )
 axislegend()
 save("Posterior_Birthweight.pdf", p)
