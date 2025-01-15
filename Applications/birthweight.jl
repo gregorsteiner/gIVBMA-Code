@@ -38,14 +38,11 @@ lines!(ax1, rbw(res_pln)[1], label = "gIVBMA (Poisson)")
 lines!(ax1, rbw(res_gauss)[1], label = "gIVBMA (Gaussian)", color = Makie.wong_colors()[2])
 lines!(ax1, rbw_bma(res_bma)[1], label = "BMA (Gaussian)", color = Makie.wong_colors()[3])
 
-density!(ax2, map(x -> x[1, 2]/x[2, 2], res_pln.Σ), label = "gIVBMA (Poisson)", color = (Makie.wong_colors()[1], 0.0), strokecolor = Makie.wong_colors()[1], strokewidth = 2, strokearound = true)
-density!(ax2, map(x -> x[1, 2]/x[2, 2], res_gauss.Σ), label = "gIVBMA (Gaussian)", color = (Makie.wong_colors()[2], 0.0), strokecolor = Makie.wong_colors()[2], strokewidth = 2, strokearound = true)
+density!(ax2, map(x -> x[1, 2]/x[2, 2], res_pln.Σ), label = "gIVBMA (Poisson)", color = :transparent, strokecolor = Makie.wong_colors()[1], strokewidth = 1.5)
+density!(ax2, map(x -> x[1, 2]/x[2, 2], res_gauss.Σ), label = "gIVBMA (Gaussian)", color = :transparent, strokecolor = Makie.wong_colors()[2], strokewidth = 1.5)
 
 Legend(p[2, 1:2], ax1, orientation = :horizontal)
-p
 save("Posterior_Birthweight.pdf", p)
-
-
 
 
 # check instruments
