@@ -1,5 +1,6 @@
 
-using DataFrames, CSV, InvertedIndices, Statistics, StatsPlots, Random
+using DataFrames, CSV, InvertedIndices, Statistics, Random
+using CairoMakie
 
 """
     Load and prepare dataset.
@@ -38,6 +39,19 @@ Z = Matrix(df[:, needed_columns[Not(1:3)]])
 
 res_bric = givbma(y, X, Z; iter = iters, burn = Int(iters/5), dist = ["Gaussian", "Gaussian", "BL"], g_prior = "BRIC")
 res_hg = givbma(y, X, Z; iter = iters, burn = Int(iters/5), dist = ["Gaussian", "Gaussian", "BL"], g_prior = "hyper-g/n")
+res_bma = bma(y, X, Z; iter = iters, burn = Int(iters/5), g_prior = "hyper-g/n")
+
+# plot of posteriors
+p = Figure()
+ax = Axis(p[1, 1], xlabel = "τ", ylabel = "Density")
+lines!(ax, rbw(res_bric)[1], label = "gIVBMA (BRIC)")
+lines!(ax, rbw(res_bric)[2])
+lines!(ax, rbw(res_hg)[1], label = "gIVBMA (hyper-g/n)", color = Makie.wong_colors()[2])
+lines!(ax, rbw(res_hg)[2], color = Makie.wong_colors()[2])
+lines!(ax, rbw_bma(res_bma)[1], label = "BMA (hyper-g/n)", color = Makie.wong_colors()[3])
+lines!(ax, rbw_bma(res_bma)[2], color = Makie.wong_colors()[3])
+axislegend(; position = :lt)
+p
 
 # Create table summarising the results
 function create_latex_table(res_bric, res_hg)
