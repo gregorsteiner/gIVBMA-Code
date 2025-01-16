@@ -1,4 +1,4 @@
-using SpecialFunctions, Distributions, Statistics
+using SpecialFunctions, Distributions, Statistics, LinearAlgebra
 
 """
     This file implements a 'naive' BMA approach, i.e. only on the outcome model ignoring the treatment model.

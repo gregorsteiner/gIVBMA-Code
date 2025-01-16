@@ -27,6 +27,8 @@ dropmissing!(df)
 # Run analysis
 using Pkg; Pkg.activate("../../gIVBMA")
 using gIVBMA
+include("../Simulations/bma.jl")
+
 
 Random.seed!(42)
 # number of iterations
@@ -52,6 +54,14 @@ lines!(ax, rbw_bma(res_bma)[1], label = "BMA (hyper-g/n)", color = Makie.wong_co
 lines!(ax, rbw_bma(res_bma)[2], color = Makie.wong_colors()[3])
 axislegend(; position = :lt)
 p
+
+
+pf = Figure()
+ax = Axis(pf[1,1])
+density!(ax, res_bma.σ)
+density!(ax, map(x -> x[1,1], res_hg.Σ))
+density!(ax, map(x -> x[1,1], res_bric.Σ))
+pf
 
 # Create table summarising the results
 function create_latex_table(res_bric, res_hg)
@@ -120,7 +130,6 @@ println(create_latex_table(res_bric, res_hg))
 """
 
 include("../Simulations/competing_methods.jl")
-include("../Simulations/bma.jl")
 
 function loocv(y, X, Z)
     n = length(y)
