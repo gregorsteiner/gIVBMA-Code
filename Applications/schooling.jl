@@ -96,3 +96,79 @@ pretty_table(
     row_labels = ["age", "agesq", "nearc2", "nearc4", "fatheduc", "motheduc", "momdad14", "sinmom14", "step14", "black", "south", "smsa", "married",
                  "reg662", "reg663", "reg664", "reg665", "reg666", "reg667", "reg668", "reg669"]
 )
+
+
+##### LPS Comparison #####
+using ProgressBars
+
+function kfold_cv(y, X, Z, W; k=5, iters = 1000)
+    n = length(y)
+    fold_size = Int(floor(n / k))
+    meths = ["gIVBMA (hyper-g/n)", "gIVBMA (BRIC)", "BMA (hyper-g/n)", "IVBMA", "TSLS"]
+    lps_store = zeros(k, length(meths))
+
+    # Generate indices for each fold
+    indices = collect(1:n)
+    fold_indices = [indices[i:min(i+fold_size-1, n)] for i in 1:fold_size:n]
+
+    for fold in ProgressBar(1:k)
+        # Define the test and training indices for the current fold
+        test_idx = fold_indices[fold]
+        train_idx = setdiff(indices, test_idx)
+
+        # Split the data
+        y_train, X_train, Z_train, W_train = y[train_idx], X[train_idx, :], Z[train_idx, :], W[train_idx, :]
+        y_test, X_test, Z_test, W_test = y[test_idx], X[test_idx, :], Z[test_idx, :], W[test_idx, :]
+
+        # Fit the model on the training set
+        fit_hg = givbma(y_train, X_train, Z_train, W_train; g_prior = "hyper-g/n", iter = iters, burn = Int(iters/5))
+        fit_bric = givbma(y_train, X_train, Z_train, W_train; g_prior = "BRIC", iter = iters, burn = Int(iters/5))
+        fit_bma = bma(y_train, X_train, W_train; g_prior = "hyper-g/n", iter = iters, burn = Int(iters/5))
+
+        # Compute LPS for the current test observations
+        lps_store[fold, :] = [
+            lps(fit_hg, y_test, X_test, Z_test, W_test),
+            lps(fit_bric, y_test, X_test, Z_test, W_test),
+            lps_bma(fit_bma, y_test, X_test, W_test),
+            ivbma_kl(y_train, X_train, Z_train, W_train, y_test, X_test, Z_test, W_test).lps,
+            tsls(y_train, X_train, Z_train, W_train, y_test, X_test, W_test).lps
+        ]
+    end
+
+    return round.(lps_store, digits = 3)
+end
+
+res = kfold_cv(y_2, X_2, Z_2, W_2)
+
+function create_latex_table(res, methods)
+    # Calculate means and standard deviations
+    means = round.(mean(res, dims=1)[:], digits = 3)
+    
+    # Find the index of the lowest mean value
+    min_index = argmin(means)
+    
+    # Start building the LaTeX table with booktabs style
+    table = "\\begin{table}[h]\n\\centering\n\\begin{tabular}{lc}\n"
+    table *= "\\toprule\n"
+    table *= "Method & Mean LPS \\\\\n"
+    table *= "\\midrule\n"
+    
+    # Fill in the table rows
+    for i in eachindex(methods)
+        mean_std = string(means[i])
+        if i == min_index
+            # Highlight the minimum value
+            mean_std = "\\textbf{" * mean_std * "}"
+        end
+        table *= methods[i] * " & " * mean_std * " \\\\\n"
+    end
+    
+    # Close the table
+    table *= "\\bottomrule\n\\end{tabular}\n\\caption{The mean LPS calculated over each fold of the \\cite{card1993using} data in a 5-fold cross-validation procedure.}\n\\label{tab:schooling_5_fold_LPS}\n\\end{table}"
+    
+    return table
+end
+
+meths = ["gIVBMA (hyper-g/n)", "gIVBMA (BRIC)", "BMA (hyper-g/n)", "IVBMA", "TSLS"]
+latex_table = create_latex_table(res, meths)
+println(latex_table)
