@@ -32,15 +32,25 @@ W_2 = Matrix(d_par_educ[:, ["fatheduc", "motheduc", "momdad14", "sinmom14", "ste
 
 ##### Run analysis #####
 Random.seed!(42)
-iters = 1000
-res_hg_1 = givbma(y_1, X_1, Z_1, W_1; iter = iters, burn = Int(iters/5), g_prior = "hyper-g/n")
-res_bric_1 = givbma(y_1, X_1, Z_1, W_1; iter = iters, burn = Int(iters/5), g_prior = "BRIC")
-res_bma_1 = bma(y_1, X_1, W_1; iter = iters, burn = Int(iters/5), g_prior = "hyper-g/n")
+iters = 5000
+res_hg_1 = givbma(y_1, X_1, Z_1, W_1; iter = iters, burn = Int(iters/2), g_prior = "hyper-g/n")
+res_bric_1 = givbma(y_1, X_1, Z_1, W_1; iter = iters, burn = Int(iters/2), g_prior = "BRIC")
+res_bma_1 = bma(y_1, X_1, W_1; iter = iters, burn = Int(iters/2), g_prior = "hyper-g/n")
 
-res_hg_2 = givbma(y_2, X_2, Z_2, W_2; iter = iters, burn = Int(iters/5), g_prior = "hyper-g/n")
-res_bric_2 = givbma(y_2, X_2, Z_2, W_2; iter = iters, burn = Int(iters/5), g_prior = "BRIC")
-res_bma_2 = bma(y_2, X_2, W_2; iter = iters, burn = Int(iters/5), g_prior = "hyper-g/n")
+res_hg_2 = givbma(y_2, X_2, Z_2, W_2; iter = iters, burn = Int(iters/2), g_prior = "hyper-g/n")
+res_bric_2 = givbma(y_2, X_2, Z_2, W_2; iter = iters, burn = Int(iters/2), g_prior = "BRIC")
+res_bma_2 = bma(y_2, X_2, W_2; iter = iters, burn = Int(iters/2), g_prior = "hyper-g/n")
 
+# save model objects
+using BSON
+bson("schooling_models.bson", Dict(
+    :HG_A => res_hg_1,
+    :BRIC_A => res_bric_1,
+    :BMA_A => res_bma_1,
+    :HG_B => res_hg_2,
+    :BRIC_B => res_bric_2,
+    :BMA_B => res_bma_2
+))
 
 # Plot with posterior results
 cols = Makie.wong_colors()
@@ -138,6 +148,7 @@ function kfold_cv(y, X, Z, W; k=5, iters = 1000)
     return round.(lps_store, digits = 3)
 end
 
+Random.seed!(42)
 res = kfold_cv(y_2, X_2, Z_2, W_2)
 
 function create_latex_table(res, methods)
@@ -164,7 +175,7 @@ function create_latex_table(res, methods)
     end
     
     # Close the table
-    table *= "\\bottomrule\n\\end{tabular}\n\\caption{The mean LPS calculated over each fold of the \\cite{card1993using} data in a 5-fold cross-validation procedure.}\n\\label{tab:schooling_5_fold_LPS}\n\\end{table}"
+    table *= "\\bottomrule\n\\end{tabular}\n\\caption{The mean LPS calculated over each fold of the \\cite{card1995collegeproximity} data in a 5-fold cross-validation procedure.}\n\\label{tab:schooling_5_fold_LPS}\n\\end{table}"
     
     return table
 end
