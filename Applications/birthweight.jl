@@ -6,6 +6,8 @@ using CairoMakie
 using Pkg; Pkg.activate("../../gIVBMA")
 using gIVBMA
 
+include("../Simulations/bma.jl")
+
 """
     Fit full IVBMA models.
 """
@@ -24,34 +26,28 @@ W = modelmatrix(@formula(cigs ~ (parity + male + white) + (cigprice + cigtax + f
 
 # fit model
 iters = 5000
-res_pln = ivbma(y, x, Z, W; iter = iters, burn = Int(iters/5), dist = ["PLN", "PLN"], g_prior = "hyper-g/n")
-res_gauss = ivbma(log.(y), x, Z, W; iter = iters, burn = Int(iters/5), dist = ["Gaussian", "PLN"], g_prior = "hyper-g/n")
+res_pln = givbma(y, x, Z, W; iter = iters, burn = Int(iters/5), dist = ["PLN", "PLN"], g_prior = "hyper-g/n")
+res_gauss = givbma(log.(y), x, Z, W; iter = iters, burn = Int(iters/5), dist = ["Gaussian", "PLN"], g_prior = "hyper-g/n")
+res_bma = bma(log.(y), x[:, 1:1], W; iter = iters, burn = Int(iters/5), g_prior = "hyper-g/n")
 
 # save plot of posteriors
 p = Figure()
-ax = Axis(p[1, 1], xlabel = "τ", ylabel = "Density")
-CairoMakie.lines!(
-    ax, rbw(res_pln)[1],
-    color = Makie.wong_colors()[1],
-    label = "Poisson"
-    )
-CairoMakie.lines!(
-    ax, rbw(res_gauss)[1],
-    color = Makie.wong_colors()[2],
-    label = "Gaussian"
-    )
-axislegend()
+ax1, ax2 = (Axis(p[1, 1], xlabel = "τ", ylabel = "Density"), Axis(p[1, 2], xlabel = "σᵧₓ / σₓₓ", ylabel = "Density"))
+
+lines!(ax1, rbw(res_pln)[1], label = "gIVBMA (Poisson)")
+lines!(ax1, rbw(res_gauss)[1], label = "gIVBMA (Gaussian)", color = Makie.wong_colors()[2])
+lines!(ax1, rbw_bma(res_bma)[1], label = "BMA (Gaussian)", color = Makie.wong_colors()[3])
+
+density!(ax2, map(x -> x[1, 2]/x[2, 2], res_pln.Σ), label = "gIVBMA (Poisson)", color = :transparent, strokecolor = Makie.wong_colors()[1], strokewidth = 1.5)
+density!(ax2, map(x -> x[1, 2]/x[2, 2], res_gauss.Σ), label = "gIVBMA (Gaussian)", color = :transparent, strokecolor = Makie.wong_colors()[2], strokewidth = 1.5)
+
+Legend(p[2, 1:2], ax1, orientation = :horizontal)
 save("Posterior_Birthweight.pdf", p)
 
 
 # check instruments
 mean(res_pln.M, dims = 1)
 mean(res_gauss.M, dims = 1)
-
-
-# check endogeneity
-map(x -> x[1, 2]/x[2,2], res_pln.Σ) |> density
-map(x -> x[1, 2]/x[2,2], res_gauss.Σ) |> density
 
 
 """

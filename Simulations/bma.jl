@@ -1,4 +1,4 @@
-using SpecialFunctions, Distributions, Statistics
+using SpecialFunctions, Distributions, Statistics, LinearAlgebra
 
 """
     This file implements a 'naive' BMA approach, i.e. only on the outcome model ignoring the treatment model.
@@ -78,6 +78,7 @@ function bma(y::AbstractVector, X::AbstractMatrix, W::AbstractMatrix; iter::Inte
     β_store = zeros(nsave, k)
     σ_store = zeros(nsave)
     L_store = Array{Bool}(undef, nsave, k)
+    g_store = zeros(nsave)
 
     for i in 2:(iter)
         # draw proposal
@@ -117,6 +118,7 @@ function bma(y::AbstractVector, X::AbstractMatrix, W::AbstractMatrix; iter::Inte
             β_store[i-burn, L] = β
             σ_store[i-burn] = σ
             L_store[i-burn, :] = L
+            g_store[i-burn] = g
         end
 
 
@@ -127,7 +129,8 @@ function bma(y::AbstractVector, X::AbstractMatrix, W::AbstractMatrix; iter::Inte
             τ = τ_store,
             β = β_store,
             σ = σ_store,
-            L = L_store)
+            L = L_store,
+            g = g_store)
 end
 
 
@@ -151,4 +154,24 @@ function lps_bma(bma, y_h, X_h, W_h)
     return lps
 end
 
+function rbw_bma(sample)
+    n, l = size(sample.X)
+    
+    means_tau = Matrix(undef, length(sample.α), l)
+    vars_tau = Matrix(undef, length(sample.α), l)
 
+    for i in eachindex(sample.α)
+        U = [sample.X sample.W[:, sample.L[i, :]]]
+        sf = sample.g[i] / (1 + sample.g[i])
+
+        rho_mean = sf * inv(U'U) * U' * sample.y
+        rho_cov = sf * sample.σ[i] * inv(U'U)
+        
+        means_tau[i, :] = rho_mean[1:l]
+        vars_tau[i, :] = diag(rho_cov)[1:l]
+    end
+
+    d = [MixtureModel(map((μ, σ) -> Normal(μ, sqrt(σ)), means_tau[:, j], vars_tau[:, j])) for j in 1:l]
+
+    return d
+end
