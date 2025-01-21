@@ -138,29 +138,38 @@ function kfold_cv(y, X, Z, W; k=5, iters = 1000)
 end
 
 Random.seed!(42)
-res = kfold_cv(y_2, X_2, Z_2, W_2)
+res1 = kfold_cv(y_1, X_1, Z_1, W_1)
+res2 = kfold_cv(y_2, X_2, Z_2, W_2)
 
-function create_latex_table(res, methods)
-    # Calculate means and standard deviations
-    means = round.(mean(res, dims=1)[:], digits = 3)
+function create_latex_table(res1, res2, methods)
+    # Calculate means for both result sets
+    means1 = round.(mean(res1, dims=1)[:], digits = 3)
+    means2 = round.(mean(res2, dims=1)[:], digits = 3)
     
-    # Find the index of the lowest mean value
-    min_index = argmin(means)
+    # Find the indices of the lowest mean values for each column
+    min_index1 = argmin(means1)
+    min_index2 = argmin(means2)
     
     # Start building the LaTeX table with booktabs style
-    table = "\\begin{table}[h]\n\\centering\n\\begin{tabular}{lc}\n"
+    table = "\\begin{table}[h]\n\\centering\n\\begin{tabular}{lcc}\n"
     table *= "\\toprule\n"
-    table *= "Method & Mean LPS \\\\\n"
+    table *= "Method & Without parental education & With parental education \\\\\n"
     table *= "\\midrule\n"
     
     # Fill in the table rows
     for i in eachindex(methods)
-        mean_std = string(means[i])
-        if i == min_index
-            # Highlight the minimum value
-            mean_std = "\\textbf{" * mean_std * "}"
+        mean_std1 = string(means1[i])
+        mean_std2 = string(means2[i])
+        
+        # Highlight the minimum values in each column
+        if i == min_index1
+            mean_std1 = "\\textbf{" * mean_std1 * "}"
         end
-        table *= methods[i] * " & " * mean_std * " \\\\\n"
+        if i == min_index2
+            mean_std2 = "\\textbf{" * mean_std2 * "}"
+        end
+        
+        table *= methods[i] * " & " * mean_std1 * " & " * mean_std2 * " \\\\\n"
     end
     
     # Close the table
@@ -170,5 +179,5 @@ function create_latex_table(res, methods)
 end
 
 meths = ["gIVBMA (hyper-g/n)", "gIVBMA (BRIC)", "BMA (hyper-g/n)", "IVBMA", "TSLS"]
-latex_table = create_latex_table(res, meths)
+latex_table = create_latex_table(res1, res2, meths)
 println(latex_table)
