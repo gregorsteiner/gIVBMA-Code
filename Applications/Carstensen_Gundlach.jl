@@ -70,12 +70,6 @@ density!(ax, res_bma_2.σ .^ 2)
 p_σ
 
 
-pf = Figure()
-ax = Axis(pf[1,1])
-density!(ax, res_bma.σ)
-density!(ax, map(x -> x[1,1], res_hg.Σ))
-density!(ax, map(x -> x[1,1], res_bric.Σ))
-pf
 
 # Create table summarising the results
 function create_latex_table(res_bric, res_hg)
@@ -210,6 +204,6 @@ function create_latex_table(res, methods)
     return table
 end
 
-methods = ["gIVBMA (BRIC)", "gIVBMA (hyper-g/n)", "IVBMA (KL)", "BMA (hyper-g/n)", "TSLS"]
+methods = ["gIVBMA (BRIC)", "gIVBMA (hyper-g/n)", "IVBMA", "BMA (hyper-g/n)", "TSLS"]
 latex_table = create_latex_table(res, methods)
 println(latex_table)
