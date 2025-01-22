@@ -42,6 +42,9 @@ Z = Matrix(df[:, needed_columns[Not(1:3)]])
 res_bric = givbma(y, X, Z; iter = iters, burn = Int(iters/5), dist = ["Gaussian", "Gaussian", "BL"], g_prior = "BRIC")
 res_hg = givbma(y, X, Z; iter = iters, burn = Int(iters/5), dist = ["Gaussian", "Gaussian", "BL"], g_prior = "hyper-g/n")
 res_bma = bma(y, X, Z; iter = iters, burn = Int(iters/5), g_prior = "hyper-g/n")
+res_bma_2 = bma(y, X, Z; iter = iters, burn = Int(iters/5), g_prior = "hyper-g/n", gIVBMA_prior = true)
+
+
 
 # plot of posteriors
 p = Figure()
@@ -52,8 +55,19 @@ lines!(ax, rbw(res_hg)[1], label = "gIVBMA (hyper-g/n)", color = Makie.wong_colo
 lines!(ax, rbw(res_hg)[2], color = Makie.wong_colors()[2])
 lines!(ax, rbw_bma(res_bma)[1], label = "BMA (hyper-g/n)", color = Makie.wong_colors()[3])
 lines!(ax, rbw_bma(res_bma)[2], color = Makie.wong_colors()[3])
+lines!(ax, rbw_bma(res_bma_2)[1], label = "BMA (gIVBMA priors)", color = Makie.wong_colors()[4])
+lines!(ax, rbw_bma(res_bma_2)[2], color = Makie.wong_colors()[4])
 axislegend(; position = :lt)
 p
+
+# Compare variances
+p_σ = Figure()
+ax = Axis(p_σ[1, 1], xlabel = "σ", ylabel = "Density")
+density!(ax, map(x -> x[1, 1] - x[2:3, 1]' * inv(x[2:3, 2:3]) * x[2:3, 1], res_bric.Σ))
+density!(ax, map(x -> x[1, 1], res_bric.Σ))
+density!(ax, res_bma.σ .^ 2)
+density!(ax, res_bma_2.σ .^ 2)
+p_σ
 
 
 pf = Figure()

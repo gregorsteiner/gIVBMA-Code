@@ -5,7 +5,7 @@ using SpecialFunctions, Distributions, Statistics, LinearAlgebra
     This corresponds to ignoring the endogeneity.
 """
 
-function post_sample(y, X, W, g)
+function post_sample_bma(y, X, W, g, c, d)
     n, l = size(X)
     
     y_bar = Statistics.mean(y)
@@ -25,7 +25,7 @@ function post_sample(y, X, W, g)
     return (α = α, τ = τ, β = β, σ = σ)
 end
 
-function marginal_likelihood(y, W, g)
+function marginal_likelihood_bma(y, W, g, c, d)
     n = size(W, 1)
     k_j = size(W, 2)
     
@@ -35,6 +35,33 @@ function marginal_likelihood(y, W, g)
     invDetCoef = y'Q * y / dot((y .- mean(y)), (y .- mean(y)))
     
     res = ((n-1-k_j)/2) * log((1+g)) + (-(n-1)/2) * log(1 + g*(invDetCoef))
+    return res
+end
+
+function post_sample_givbma_prior(y, X, W, g, c, d)
+    n, l = size(X)
+    
+    U = [ones(n) X W]
+    δ = g / (g+1)
+
+    s = 1/2 * y' * ( I - δ * U * inv(U'U) * U') * y + d
+
+    σ = sqrt(rand(InverseGamma(n/2 + c, s))) 
+    β_t = rand(MvNormal(δ * inv(U'U)*U'y, Symmetric(σ^2 * δ * inv(U'U))))
+    α = β_t[1]
+    τ = β_t[2:(l+1)]
+    β = β_t[(l+2):end]
+    
+    return (α = α, τ = τ, β = β, σ = σ)
+end
+
+function marginal_likelihood_givbma_prior(y, W, g, c, d)
+    n = length(y)
+    U = [ones(n) W]
+    k_U = size(U, 2)
+    s = 1/2 * y' * ( I - (g/(g+1)) * U * inv(U'U) * U') * y + d
+
+    res = -k_U * log(g+1) - (n/2 + c) * log(s)
     return res
 end
 
@@ -54,7 +81,7 @@ function adjust_variance(curr_variance, acc_prob, desired_acc_prob, iter)
     return exp(log_variance)
 end
 
-function bma(y::AbstractVector, X::AbstractMatrix, W::AbstractMatrix; iter::Integer = 2000, burn::Integer = 1000, g_prior = "BRIC", dist = "Gaussian")
+function bma(y::AbstractVector, X::AbstractMatrix, W::AbstractMatrix; iter::Integer = 2000, burn::Integer = 1000, g_prior = "BRIC", dist = "Gaussian", gIVBMA_prior = false)
     n, k = size(W)
     l = size(X, 2)
     
@@ -80,6 +107,16 @@ function bma(y::AbstractVector, X::AbstractMatrix, W::AbstractMatrix; iter::Inte
     L_store = Array{Bool}(undef, nsave, k)
     g_store = zeros(nsave)
 
+    if gIVBMA_prior
+        post_sample = post_sample_givbma_prior
+        marginal_likelihood = marginal_likelihood_givbma_prior
+    else
+        post_sample = post_sample_bma
+        marginal_likelihood = marginal_likelihood_bma
+    end
+    ν = 3
+    c, d = (ν/2, 1/2)
+
     for i in 2:(iter)
         # draw proposal
         Prop = copy(L)
@@ -88,8 +125,8 @@ function bma(y::AbstractVector, X::AbstractMatrix, W::AbstractMatrix; iter::Inte
 
         # get ratio of marginal likelihoods times priors (in logs)
         acc = min(1, exp(
-            marginal_likelihood(y, [X W[:, Prop]], g) + model_prior(Prop, k; a = 1, m = m) -
-            (marginal_likelihood(y, [X W[:, L]], g) + model_prior(L, k; a = 1, m = m))
+            marginal_likelihood(y, [X W[:, Prop]], g, c, d) + model_prior(Prop, k; a = 1, m = m) -
+            (marginal_likelihood(y, [X W[:, L]], g, c, d) + model_prior(L, k; a = 1, m = m))
         ))
         # MH step
         if rand() < acc
@@ -100,8 +137,8 @@ function bma(y::AbstractVector, X::AbstractMatrix, W::AbstractMatrix; iter::Inte
         if g_random
             prop = rand(LogNormal(log(g), sqrt(proposal_variance_g)))
             acc = min(1, exp(
-                marginal_likelihood(y, [X W[:, L]], prop) + log(hyper_g_n(prop; a = 3, n = n)) + log(prop) - 
-                (marginal_likelihood(y, [X W[:, L]], g) + log(hyper_g_n(g; a = 3, n = n)) + log(g))
+                marginal_likelihood(y, [X W[:, L]], prop, c, d) + log(hyper_g_n(prop; a = 3, n = n)) + log(prop) - 
+                (marginal_likelihood(y, [X W[:, L]], g, c, d) + log(hyper_g_n(g; a = 3, n = n)) + log(g))
             ))
             if rand() < acc
                 g = prop
@@ -110,7 +147,7 @@ function bma(y::AbstractVector, X::AbstractMatrix, W::AbstractMatrix; iter::Inte
         end
 
         # draw parameters
-        α, τ, β, σ = post_sample(y, X, W[:, L], g)
+        α, τ, β, σ = post_sample(y, X, W[:, L], g, c, d)
 
         if i > burn
             α_store[i-burn] = α
