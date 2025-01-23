@@ -58,8 +58,8 @@ function bma(y::AbstractVector, X::AbstractMatrix, W::AbstractMatrix; iter::Inte
     n, k = size(W)
     l = size(X, 2)
     
-    X = X .- mean(X; dims = 1)
-    W = W .- mean(W; dims = 1)
+    X_c = X .- mean(X; dims = 1)
+    W_c = W .- mean(W; dims = 1)
 
     g = max(n, k^2)
     g_random = (g_prior == "hyper-g/n")
@@ -88,8 +88,8 @@ function bma(y::AbstractVector, X::AbstractMatrix, W::AbstractMatrix; iter::Inte
 
         # get ratio of marginal likelihoods times priors (in logs)
         acc = min(1, exp(
-            marginal_likelihood(y, [X W[:, Prop]], g) + model_prior(Prop, k; a = 1, m = m) -
-            (marginal_likelihood(y, [X W[:, L]], g) + model_prior(L, k; a = 1, m = m))
+            marginal_likelihood(y, [X_c W_c[:, Prop]], g) + model_prior(Prop, k; a = 1, m = m) -
+            (marginal_likelihood(y, [X_c W_c[:, L]], g) + model_prior(L, k; a = 1, m = m))
         ))
         # MH step
         if rand() < acc
@@ -100,8 +100,8 @@ function bma(y::AbstractVector, X::AbstractMatrix, W::AbstractMatrix; iter::Inte
         if g_random
             prop = rand(LogNormal(log(g), sqrt(proposal_variance_g)))
             acc = min(1, exp(
-                marginal_likelihood(y, [X W[:, L]], prop) + log(hyper_g_n(prop; a = 3, n = n)) + log(prop) - 
-                (marginal_likelihood(y, [X W[:, L]], g) + log(hyper_g_n(g; a = 3, n = n)) + log(g))
+                marginal_likelihood(y, [X_c W_c[:, L]], prop) + log(hyper_g_n(prop; a = 3, n = n)) + log(prop) - 
+                (marginal_likelihood(y, [X_c W_c[:, L]], g) + log(hyper_g_n(g; a = 3, n = n)) + log(g))
             ))
             if rand() < acc
                 g = prop
@@ -110,7 +110,7 @@ function bma(y::AbstractVector, X::AbstractMatrix, W::AbstractMatrix; iter::Inte
         end
 
         # draw parameters
-        α, τ, β, σ = post_sample(y, X, W[:, L], g)
+        α, τ, β, σ = post_sample(y, X_c, W_c[:, L], g)
 
         if i > burn
             α_store[i-burn] = α
