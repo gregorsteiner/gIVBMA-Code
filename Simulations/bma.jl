@@ -156,12 +156,15 @@ end
 
 function rbw_bma(sample)
     n, l = size(sample.X)
+
+    X_c = sample.X .- mean(sample.X; dims = 1)
+    W_c = sample.W .- mean(sample.W; dims = 1)
     
     means_tau = Matrix(undef, length(sample.α), l)
     vars_tau = Matrix(undef, length(sample.α), l)
 
     for i in eachindex(sample.α)
-        U = [sample.X sample.W[:, sample.L[i, :]]]
+        U = [X_c W_c[:, sample.L[i, :]]]
         sf = sample.g[i] / (1 + sample.g[i])
 
         rho_mean = sf * inv(U'U) * U' * sample.y
