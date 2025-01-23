@@ -55,10 +55,9 @@ lines!(ax, rbw_bma(res_bma)[2], color = Makie.wong_colors()[3])
 axislegend(; position = :lt)
 p
 
-
 pf = Figure()
 ax = Axis(pf[1,1])
-density!(ax, res_bma.σ)
+density!(ax, res_bma.σ .^ 2)
 density!(ax, map(x -> x[1,1], res_hg.Σ))
 density!(ax, map(x -> x[1,1], res_bric.Σ))
 pf
@@ -164,8 +163,8 @@ function loocv(y, X, Z)
     return round.(lps_store, digits = 3)
 end
 
+Random.seed!(42)
 res = loocv(y, X, Z)
-
 
 function create_latex_table(res, methods)
     # Calculate means and standard deviations
@@ -175,7 +174,7 @@ function create_latex_table(res, methods)
     min_index = argmin(means)
     
     # Start building the LaTeX table with booktabs style
-    table = "\\begin{table}[H]\n\\centering\n\\begin{tabular}{lc}\n"
+    table = "\\begin{table}[h]\n\\centering\n\\begin{tabular}{lc}\n"
     table *= "\\toprule\n"
     table *= "Method & Mean LPS \\\\\n"
     table *= "\\midrule\n"
@@ -191,7 +190,7 @@ function create_latex_table(res, methods)
     end
     
     # Close the table
-    table *= "\\bottomrule\n\\end{tabular}\n\\caption{The mean LPS calculated across all iterations of leave-one-out cross-validation, where each iteration uses a single observation as the holdout set and the rest as the training set.}\n\\label{tab:LOOCV_LPS}\n\\end{table}"
+    table *= "\\bottomrule\n\\end{tabular}\n\\caption{The mean LPS calculated across all iterations of leave-one-out cross-validation on the \\cite{carstensen_primacy_2006} dataset, where each iteration uses a single observation as the holdout set and the rest as the training set.}\n\\label{tab:LOOCV_LPS}\n\\end{table}"
     
     return table
 end
