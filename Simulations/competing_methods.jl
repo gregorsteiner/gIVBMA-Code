@@ -312,7 +312,9 @@ function ivbma_kl(y, X, Z, W, y_h, X_h, Z_h, W_h)
     return (
         τ = l == 1 ? mean(τ) : mean(τ, dims = 1)[1, :],
         CI = l == 1 ? quantile(τ, [0.025, 0.975]) : [quantile(τ[:, i], [0.025, 0.975]) for i in axes(τ, 2)],
-        lps = lps
+        lps = lps,
+        L = res[:L_bar],
+        M = res[:M_bar]
     )
 end
 
