@@ -123,13 +123,14 @@ function kfold_cv(y, X, Z, W; k=5, iters = 1000)
         fit_hg = givbma(y_train, X_train, Z_train, W_train; g_prior = "hyper-g/n", iter = iters, burn = Int(iters/5))
         fit_bric = givbma(y_train, X_train, Z_train, W_train; g_prior = "BRIC", iter = iters, burn = Int(iters/5))
         fit_bma = bma(y_train, X_train, W_train; g_prior = "hyper-g/n", iter = iters, burn = Int(iters/5))
+        fit_ivbma = ivbma_kl(y_train, X_train, Z_train, W_train, y_test, X_test, Z_test, W_test)
 
         # Compute LPS for the current test observations
         lps_store[fold, :] = [
             lps(fit_hg, y_test, X_test, Z_test, W_test),
             lps(fit_bric, y_test, X_test, Z_test, W_test),
             lps_bma(fit_bma, y_test, X_test, W_test),
-            ivbma_kl(y_train, X_train, Z_train, W_train, y_test, X_test, Z_test, W_test).lps,
+            fit_ivbma.lps,
             tsls(y_train, X_train, Z_train, W_train, y_test, X_test, W_test).lps
         ]
     end
