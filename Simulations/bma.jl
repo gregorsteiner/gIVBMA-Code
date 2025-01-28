@@ -178,3 +178,20 @@ function rbw_bma(sample)
 
     return d
 end
+
+function posterior_predictive_bma(bma, x_h, w_h)
+    n_post = length(bma.α)
+    
+    # demean holdout sample using the mean over the training sample
+    x_c = x_h - mean(bma.X; dims = 1)[1, :]
+    w_c = w_h - mean(bma.W; dims = 1)[1, :]
+
+    mean_y, std_y = (Vector(undef, n_post), Vector(undef, n_post))
+    for i in 1:n_post
+        mean_y[i] = bma.α[i] + x_c' * bma.τ[i,:] + w_c' * bma.β[i,:]
+        std_y[i] = bma.σ[i]
+    end
+
+    d = MixtureModel(map((μ, σ) -> Normal(μ, sqrt(σ)), mean_y, std_y))
+    return d
+end

@@ -32,7 +32,7 @@ include("../Simulations/bma.jl")
 
 Random.seed!(42)
 # number of iterations
-iters = 100000
+iters = 10000
 
 # Use rule as main endogenous variable
 y = df.lngdpc
@@ -55,6 +55,22 @@ lines!(ax, rbw_bma(res_bma)[2], color = Makie.wong_colors()[3])
 axislegend(; position = :lt)
 p
 
+
+# check posterior predictive
+post_pred_bma = [posterior_predictive_bma(res_bma, X[idx, :], Z[idx, :]) for idx in eachindex(y)]
+post_pred_hg = [posterior_predictive(res_hg, X[idx, :], Z[idx, :]) for idx in eachindex(y)]
+
+pp = Figure()
+ax = Axis(pp[1, 1])
+for i in eachindex(y)
+    lines!(ax, post_pred_hg[i], label = "gIVBMA (hyper-g/n)", alpha = 1/2)
+    lines!(ax, post_pred_bma[i], label = "BMA (hyper-g/n)", alpha = 1/2, color = Makie.wong_colors()[2])
+end
+density!(ax, y, color = Makie.wong_colors()[3])
+pp
+
+
+# check variances
 pf = Figure()
 ax = Axis(pf[1,1])
 density!(ax, res_bma.σ .^ 2)
@@ -113,7 +129,7 @@ function create_latex_table(res_bric, res_hg)
     table *= """
     \\bottomrule
     \\end{tabular}
-    \\caption{Treatment effect estimates (posterior mean and 95\\% CI) and posterior inclusion probabilities (PIP) in outcome (L) and treatment (M) models for rule and malfal as endogenous variables. The algorithm was run for 100,000 iterations (the first 20,000 of which were discarded as burn-in).}
+    \\caption{Treatment effect estimates (posterior mean and 95\\% CI) and posterior inclusion probabilities (PIP) in outcome (L) and treatment (M) models for rule and malfal as endogenous variables. The algorithm was run for 10,000 iterations (the first 2,000 of which were discarded as burn-in).}
     \\label{tab:CG_results}
     \\end{table}
     """
