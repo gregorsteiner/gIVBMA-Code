@@ -124,7 +124,7 @@ function matrix_to_latex(matrix, rownames)
 
     # Close table and add caption at bottom
     latex *= "\\bottomrule\n\\end{tabular}\n"
-    latex *= "\\caption{Posterior inclusion probabilities for the \\citep{card1995collegeproximity} example.}\n"
+    latex *= "\\caption{Posterior inclusion probabilities for the \\cite{card1995collegeproximity} example.}\n"
     latex *= "\\end{table}"
 
     return println(latex)
