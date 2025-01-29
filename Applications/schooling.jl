@@ -36,12 +36,15 @@ iters = 5000
 res_hg_1 = givbma(y_1, X_1, Z_1, W_1; iter = iters, burn = Int(iters/2), g_prior = "hyper-g/n")
 res_bric_1 = givbma(y_1, X_1, Z_1, W_1; iter = iters, burn = Int(iters/2), g_prior = "BRIC")
 res_bma_1 = bma(y_1, X_1, W_1; iter = iters, burn = Int(iters/2), g_prior = "hyper-g/n")
+res_ivbma_1 = ivbma_kl(y_1, X_1, Z_1, W_1, y_1, X_1, Z_1, W_1)
 
 res_hg_2 = givbma(y_2, X_2, Z_2, W_2; iter = iters, burn = Int(iters/2), g_prior = "hyper-g/n")
 res_bric_2 = givbma(y_2, X_2, Z_2, W_2; iter = iters, burn = Int(iters/2), g_prior = "BRIC")
 res_bma_2 = bma(y_2, X_2, W_2; iter = iters, burn = Int(iters/2), g_prior = "hyper-g/n")
+res_ivbma_2 = ivbma_kl(y_2, X_2, Z_2, W_2, y_2, X_2, Z_2, W_2)
 
-# Plot with posterior results
+
+# Plot the posterior results
 cols = Makie.wong_colors()
 
 fig = Figure()
@@ -67,34 +70,77 @@ Legend(fig[3, 1:2], ax1, orientation = :horizontal)
 save("Posterior_Schooling.pdf", fig)
 
 
-# check the PIPs
-pretty_table(
-    [[repeat([missing], 4); mean(res_hg_1.L, dims = 1)'] mean(res_hg_1.M, dims = 1)'];
-    header = ["L", "M"],
-    row_labels = ["age", "agesq", "nearc2", "nearc4", "momdad14", "sinmom14", "step14", "black", "south", "smsa", "married",
-                 "reg662", "reg663", "reg664", "reg665", "reg666", "reg667", "reg668", "reg669"]
+# Create PIP table
+
+function create_pip_table(hg, bric, ivbma, bma)
+    tab_hg = [[repeat([missing], 4); mean(hg.L, dims = 1)'] mean(hg.M, dims = 1)']
+    tab_bric = [[repeat([missing], 4); mean(bric.L, dims = 1)'] mean(bric.M, dims = 1)']
+    tab_ivbma = [[repeat([missing], 4); ivbma.L[Not(1:4)]] ivbma.M[Not(1), 1]]
+    tab_bma = [repeat([missing], 4); mean(bma.L, dims = 1)']
+    return [tab_hg tab_bric tab_ivbma tab_bma]
+end
+
+
+function matrix_to_latex(matrix, rownames)
+    # Validate inputs
+    num_rows = size(matrix, 1)
+    
+    # Start building the LaTeX table
+    latex = "\\begin{table}[ht]\n\\centering\n"
+
+    latex *= "\\begin{tabular}{l"
+    # Add column specifications (one for each data column)
+    latex *= "c" ^ 7
+    latex *= "}\n\\toprule\n"
+
+    # Add multicolumn headers
+    latex *= "& \\multicolumn{2}{c}{gIVBMA (hyper-g/n)} & "
+    latex *= "\\multicolumn{2}{c}{gIVBMA (BRIC)} & "
+    latex *= "\\multicolumn{2}{c}{IVBMA} & "
+    latex *= "\\multicolumn{1}{c}{BMA (hyper-g/n)} \\\\\n"
+
+    # Add subheaders
+    latex *= "& L & M & L & M & L & M & L \\\\\n"
+    latex *= "\\midrule\n"
+
+    # Add data rows
+    for i in 1:num_rows
+        # Start with rowname
+        latex *= rownames[i]
+        
+        # Add each value in the row
+        for j in 1:7
+            latex *= " & "
+            # Check for missing values
+            if ismissing(matrix[i,j])
+                latex *= "NA"
+            else
+                # Format number with 3 decimal places using round
+                latex *= string(round(matrix[i,j], digits=3))
+            end
+        end
+        latex *= " \\\\\n"
+    end
+
+    # Close table and add caption at bottom
+    latex *= "\\bottomrule\n\\end{tabular}\n"
+    latex *= "\\caption{Posterior inclusion probabilities for the \\citep{card1995collegeproximity} example.}\n"
+    latex *= "\\end{table}"
+
+    return println(latex)
+end
+
+matrix_to_latex(
+    create_pip_table(res_hg_1, res_bric_1, res_ivbma_1, res_bma_1),
+    ["age", "agesq", "nearc2", "nearc4", "momdad14", "sinmom14", "step14", "black", "south", "smsa", "married",
+             "reg662", "reg663", "reg664", "reg665", "reg666", "reg667", "reg668", "reg669"]
 )
 
-pretty_table(
-    [[repeat([missing], 4); mean(res_bric_1.L, dims = 1)'] mean(res_bric_1.M, dims = 1)'];
-    header = ["L", "M"],
-    row_labels = ["age", "agesq", "nearc2", "nearc4", "momdad14", "sinmom14", "step14", "black", "south", "smsa", "married",
-                 "reg662", "reg663", "reg664", "reg665", "reg666", "reg667", "reg668", "reg669"]
-)
-
-pretty_table(
-    [[repeat([missing], 4); mean(res_hg_2.L, dims = 1)'] mean(res_hg_2.M, dims = 1)'];
-    header = ["L", "M"],
-    row_labels = ["age", "agesq", "nearc2", "nearc4", "fatheduc", "motheduc", "momdad14", "sinmom14", "step14", "black", "south", "smsa", "married",
-                 "reg662", "reg663", "reg664", "reg665", "reg666", "reg667", "reg668", "reg669"]
-)
-
-pretty_table(
-    [[repeat([missing], 4); mean(res_bric_2.L, dims = 1)'] mean(res_bric_2.M, dims = 1)'];
-    header = ["L", "M"],
-    row_labels = ["age", "agesq", "nearc2", "nearc4", "fatheduc", "motheduc", "momdad14", "sinmom14", "step14", "black", "south", "smsa", "married",
-                 "reg662", "reg663", "reg664", "reg665", "reg666", "reg667", "reg668", "reg669"]
-)
+matrix_to_latex(
+    create_pip_table(res_hg_2, res_bric_2, res_ivbma_2, res_bma_2),
+    ["age", "agesq", "nearc2", "nearc4", "fatheduc", "motheduc", "momdad14", "sinmom14", "step14", "black", "south", "smsa", "married",
+     "reg662", "reg663", "reg664", "reg665", "reg666", "reg667", "reg668", "reg669"]
+) 
 
 
 ##### LPS Comparison #####

@@ -129,7 +129,7 @@ function create_latex_table(res_bric, res_hg)
     table *= """
     \\bottomrule
     \\end{tabular}
-    \\caption{Treatment effect estimates (posterior mean and 95\\% CI) and posterior inclusion probabilities (PIP) in outcome (L) and treatment (M) models for rule and malfal as endogenous variables. The algorithm was run for 10,000 iterations (the first 2,000 of which were discarded as burn-in).}
+    \\caption{Treatment effect estimates (posterior mean and 95\\% credible interval) and posterior inclusion probabilities (PIP) in outcome (L) and treatment (M) models for rule and malfal as endogenous variables. The algorithm was run for 10,000 iterations (the first 2,000 of which were discarded as burn-in).}
     \\label{tab:CG_results}
     \\end{table}
     """
