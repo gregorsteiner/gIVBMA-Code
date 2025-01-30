@@ -113,7 +113,7 @@ function matrix_to_latex(matrix, rownames)
             latex *= " & "
             # Check for missing values
             if ismissing(matrix[i,j])
-                latex *= "NA"
+                latex *= "-"
             else
                 # Format number with 3 decimal places using round
                 latex *= string(round(matrix[i,j], digits=3))
