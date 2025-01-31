@@ -1,7 +1,5 @@
 
-"""
-    This file implements the MA2SLS estimator by Kuersteiner & Okui (2010, Econometrica). I translated their Matlab Code into Julia.
-"""
+##### This file implements the MA2SLS estimator by Kuersteiner & Okui (2010, Econometrica). I translated their Matlab Code into Julia. #####
 
 using LinearAlgebra
 using JuMP, Ipopt  # For solving quadratic programs

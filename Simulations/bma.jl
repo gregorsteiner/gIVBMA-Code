@@ -54,7 +54,11 @@ function adjust_variance(curr_variance, acc_prob, desired_acc_prob, iter)
     return exp(log_variance)
 end
 
-function bma(y::AbstractVector, X::AbstractMatrix, W::AbstractMatrix; iter::Integer = 2000, burn::Integer = 1000, g_prior = "BRIC", dist = "Gaussian")
+function bma(y::AbstractVector, X::AbstractVecOrMat, W::AbstractMatrix; iter::Integer = 2000, burn::Integer = 1000, g_prior = "BRIC", dist = "Gaussian")
+    # if X is a vector turn it into an nx1 matrix
+    if ndims(X) == 1
+        X = permutedims(X)'
+    end
     n, k = size(W)
     l = size(X, 2)
     
@@ -135,6 +139,10 @@ end
 
 
 function lps_bma(bma, y_h, X_h, W_h)
+    # if X is a vector turn it into an nx1 matrix
+    if ndims(X_h) == 1
+        X_h = permutedims(X_h)'
+    end
     n_h, l = size(X_h)
     n_post = length(bma.α)
     scores = Matrix{Float64}(undef, n_h, n_post)

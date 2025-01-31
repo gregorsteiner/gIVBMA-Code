@@ -3,16 +3,16 @@
 using Distributions, LinearAlgebra
 using BSON, ProgressBars
 
-using Pkg; Pkg.activate("../../IVBMA")
-using IVBMA
+using Pkg; Pkg.activate("../../gIVBMA")
+using gIVBMA
 
 include("competing_methods.jl")
+include("bma.jl")
 include("MA2SLS.jl")
 
 
-"""
-    Write auxiliary functions
-"""
+##### Define auxiliary functions #####
+
 # generate the instruments coefficients
 # Note that with p = 20 choosing c_M = 3/8 leads to an R^2 of approximately 0.1.
 function gen_instr_coeff(p, c_M)
@@ -42,10 +42,9 @@ function gen_data_KO2010(n = 100, c_M = 3/8, τ = 0.1, p = 20, k = 10, c = 1/2)
     return (y=y, x=x, Z=Z, W=W)
 end
 
-function ivbma_res(y, x, Z, W, y_h, x_h, Z_h, W_h; g_prior = "BRIC", two_comp = false)
-    res = ivbma(y, x, Z, W; g_prior = g_prior, two_comp = two_comp)
+function givbma_res(y, x, Z, W, y_h, x_h, Z_h, W_h; g_prior = "BRIC", two_comp = false)
+    res = givbma(y, x, Z, W; g_prior = g_prior, two_comp = two_comp)
     lps_int = lps(res, y_h, x_h, Z_h, W_h)
-    
     return (
         τ = mean(rbw(res)[1]),
         CI = quantile(rbw(res)[1], [0.025, 0.975]),
@@ -53,8 +52,18 @@ function ivbma_res(y, x, Z, W, y_h, x_h, Z_h, W_h; g_prior = "BRIC", two_comp = 
     )
 end
 
+function bma_res(y, X, Z, y_h, X_h, Z_h; g_prior = "hyper-g/n")
+    res = bma(y, X, Z; g_prior = g_prior)
+    lps_int = lps_bma(res, y_h, X_h, Z_h)
+    return (
+        τ = mean(rbw_bma(res)[1]),
+        CI = quantile(rbw_bma(res)[1], [0.025, 0.975]),
+        lps = lps_int
+    )
+end
+
 function sim_func(m, n; c_M = 3/8, τ = 0.1, p = 20, k = 10, c = 1/2)
-    meths = ["gIVBMA (BRIC)", "gIVBMA (hyper-g/n)", "gIVBMA (2C)", "IVBMA (KL)", "TSLS", "OTSLS", "JIVE", "RJIVE", "Post-Lasso", "MATSLS"]
+    meths = ["BMA (hyper-g/n)", "gIVBMA (BRIC)", "gIVBMA (hyper-g/n)", "gIVBMA (2C)", "IVBMA (KL)", "OLS", "TSLS", "OTSLS", "JIVE", "RJIVE", "Post-Lasso", "MATSLS"]
 
     squared_error_store = Matrix(undef, m, length(meths))
     bias_store = Matrix(undef, m, length(meths))
@@ -66,10 +75,12 @@ function sim_func(m, n; c_M = 3/8, τ = 0.1, p = 20, k = 10, c = 1/2)
         d_h = gen_data_KO2010(Int(n/5), c_M, τ, p, k, c)
 
         res = [
-            ivbma_res(d.y, d.x, d.Z, d.W, d_h.y, d_h.x, d_h.Z, d_h.W; g_prior = "BRIC"),
-            ivbma_res(d.y, d.x, d.Z, d.W, d_h.y, d_h.x, d_h.Z, d_h.W; g_prior = "hyper-g/n"),
-            ivbma_res(d.y, d.x, d.Z, d.W, d_h.y, d_h.x, d_h.Z, d_h.W; g_prior = "hyper-g/n", two_comp = true),
+            bma_res(d.y, d.x, d.W, d_h.y, d_h.x, d_h.W; g_prior = "hyper-g/n"),
+            givbma_res(d.y, d.x, d.Z, d.W, d_h.y, d_h.x, d_h.Z, d_h.W; g_prior = "BRIC"),
+            givbma_res(d.y, d.x, d.Z, d.W, d_h.y, d_h.x, d_h.Z, d_h.W; g_prior = "hyper-g/n"),
+            givbma_res(d.y, d.x, d.Z, d.W, d_h.y, d_h.x, d_h.Z, d_h.W; g_prior = "hyper-g/n", two_comp = true),
             ivbma_kl(d.y, d.x, d.Z, d.W, d_h.y, d_h.x, d_h.Z, d_h.W),
+            ols(d.y, d.x, d.W, d_h.y, d_h.x, d_h.W),
             tsls(d.y, d.x, d.Z, d.W, d_h.y, d_h.x, d_h.W),
             tsls(d.y, d.x, d.Z[:, 1:10], d.W[:, 1:5], d_h.y, d_h.x, d_h.W[:, 1:5]),
             jive(d.y, d.x, d.Z, d.W, d_h.y, d_h.x, d_h.W),
@@ -92,9 +103,8 @@ function sim_func(m, n; c_M = 3/8, τ = 0.1, p = 20, k = 10, c = 1/2)
 end
 
 
-"""
-    Run the simulation
-"""
+##### Run the simulation #####
+
 m = 100
 c_M = [1/8, 3/8] # In this setup we get a first stage R^2 ≈ 0.1 with c_M = 3/8 and R^2 ≈ 0.01 with c_M = 1/8.
 
@@ -104,9 +114,8 @@ res500 = map(c -> sim_func(m, 500; c_M = c), c_M)
 bson("SimResKO2010.bson", Dict(:n50 => res50, :n500 => res500))
 
 
-"""
-    Create Latex table
-"""
+##### Create Latex table #####
+
 res = BSON.load("SimResKO2010.bson")
 
 # Helper function to format individual results into a LaTeX tabular format
@@ -153,7 +162,7 @@ function make_stacked_multicolumn_table(res)
     )
 
     # Header for each method
-    methods = ["gIVBMA (BRIC)", "gIVBMA (hyper-g/n)", "gIVBMA (2C)", "IVBMA (KL)", "TSLS", "OTSLS", "JIVE", "RJIVE", "Post-Lasso", "MATSLS"]
+    methods = ["BMA (hyper-g/n)", "gIVBMA (BRIC)", "gIVBMA (hyper-g/n)", "gIVBMA (2C)", "IVBMA (KL)", "OLS", "TSLS", "OTSLS", "JIVE", "RJIVE", "Post-Lasso", "MATSLS"]
 
     # Start the LaTeX table
     table_str = "\\begin{table}\n\\centering\n\\begin{tabular}{l*{8}{r}}\n\\toprule\n"

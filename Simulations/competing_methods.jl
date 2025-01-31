@@ -51,19 +51,24 @@ end
 """
     OLS estimator.
 """
-function ols(y, x, W; level = 0.05)
+function ols(y, x, W, y_h, x_h, W_h; level = 0.05)
     n = length(y)
     U = [ones(n) x W]
     k = size(U, 2)
 
-    ols = inv(U'U) * U'y
-    τ_hat = ols[2]
-    σ = sqrt( (y - U*ols)' * (y - U*ols) / (n-k) )
-    cov = σ^2 * inv(U'U)
+    β_hat = inv(U'U) * U'y
+    τ_hat = β_hat[2]
+
+    residuals = y - U * β_hat
+    σ2_hat = sum(residuals.^2) / (n - size(U, 2))
+    cov = σ2_hat * inv(U'U)
     sd_τ_hat = sqrt(cov[2,2])
     ci = τ_hat .+ [-1, 1] * quantile(Normal(0, 1), 1 - level/2) * sd_τ_hat
 
-    return (τ = τ_hat, CI = ci)
+    U_h = [ones(length(y_h)) x_h W_h]
+    lps = -logpdf(MvNormal(U_h * β_hat, σ2_hat * I), y_h) / length(y_h)
+
+    return (τ = τ_hat, CI = ci, lps = lps)
 end
 
 
