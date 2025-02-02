@@ -3,10 +3,11 @@
 using Distributions, LinearAlgebra
 using BSON, ProgressBars
 
+include("bma.jl")
 include("competing_methods.jl")
 
-using Pkg; Pkg.activate("../../IVBMA")
-using IVBMA
+using Pkg; Pkg.activate("../../gIVBMA")
+using gIVBMA
 
 
 """
@@ -26,8 +27,8 @@ function gen_data_Kang2016(n, τ, p, s, c)
     return (y=y, x=x, Z=Z)
 end
 
-function ivbma_flex(y, x, Z, y_h, x_h, Z_h; g_prior)
-    res = ivbma(y, x, Z; g_prior = g_prior)
+function givbma_flex(y, x, Z, y_h, x_h, Z_h; g_prior)
+    res = givbma(y, x, Z; g_prior = g_prior, iter = 1200, burn = 200)
     lps_int = lps(res, y_h, x_h, Z_h)
     return (
         τ = mean(rbw(res)[1]),
@@ -36,8 +37,8 @@ function ivbma_flex(y, x, Z, y_h, x_h, Z_h; g_prior)
     )
 end
 
-function ivbma_fix(y, x, Z, W, y_h, x_h, Z_h, W_h; g_prior)
-    res = ivbma(y, x, Z, W; g_prior = g_prior)
+function givbma_fix(y, x, Z, W, y_h, x_h, Z_h, W_h; g_prior = "hyper-g/n", two_comp = false)
+    res = givbma(y, x, Z, W; g_prior = g_prior, two_comp = two_comp, iter = 1200, burn = 200)
     lps_int = lps(res, y_h, x_h, Z_h, W_h)
     return (
         τ = mean(rbw(res)[1]),
@@ -46,8 +47,18 @@ function ivbma_fix(y, x, Z, W, y_h, x_h, Z_h, W_h; g_prior)
     )
 end
 
+function bma_res(y, X, Z, y_h, X_h, Z_h; g_prior = "hyper-g/n")
+    res = bma(y, X, Z; g_prior = g_prior, iter = 1200, burn = 200)
+    lps_int = lps_bma(res, y_h, X_h, Z_h)
+    return (
+        τ = mean(rbw_bma(res)[1]),
+        CI = quantile(rbw_bma(res)[1], [0.025, 0.975]),
+        lps = lps_int
+    )
+end
+
 function sim_func(m, n; τ = 0.1, p = 10, s = 2, c = 0.5)
-    meths = ["gIVBMA (BRIC)", "gIVBMA (hyper-g/n)", "O-gIVBMA (hyper-g/n)", "IVBMA (KL)", "TSLS", "O-TSLS", "sisVIVE"]
+    meths = ["BMA (hyper-g/n)", "gIVBMA (BRIC)", "gIVBMA (hyper-g/n)", "O-gIVBMA (hyper-g/n)", "O-gIVBMA (2C)", "IVBMA (KL)", "OLS", "TSLS", "O-TSLS", "sisVIVE"]
 
     squared_error_store = Matrix(undef, m, length(meths))
     bias_store = Matrix(undef, m, length(meths))
@@ -59,10 +70,13 @@ function sim_func(m, n; τ = 0.1, p = 10, s = 2, c = 0.5)
         d_h = gen_data_Kang2016(Int(n/5), τ, p, s, c)
 
         res = [
-            ivbma_flex(d.y, d.x, d.Z, d_h.y, d_h.x, d_h.Z; g_prior = "BRIC"),
-            ivbma_flex(d.y, d.x, d.Z, d_h.y, d_h.x, d_h.Z; g_prior = "hyper-g/n"),
-            ivbma_fix(d.y, d.x, d.Z[:, (s+1):p], d.Z[:, 1:s], d_h.y, d_h.x, d_h.Z[:, (s+1):p], d_h.Z[:, 1:s]; g_prior = "hyper-g/n"),
+            bma_res(d.y, d.x, d.Z, d_h.y, d_h.x, d_h.Z; g_prior = "hyper-g/n"),
+            givbma_flex(d.y, d.x, d.Z, d_h.y, d_h.x, d_h.Z; g_prior = "BRIC"),
+            givbma_flex(d.y, d.x, d.Z, d_h.y, d_h.x, d_h.Z; g_prior = "hyper-g/n"),
+            givbma_fix(d.y, d.x, d.Z[:, (s+1):p], d.Z[:, 1:s], d_h.y, d_h.x, d_h.Z[:, (s+1):p], d_h.Z[:, 1:s]; g_prior = "hyper-g/n"),
+            givbma_fix(d.y, d.x, d.Z[:, (s+1):p], d.Z[:, 1:s], d_h.y, d_h.x, d_h.Z[:, (s+1):p], d_h.Z[:, 1:s]; two_comp = true),
             ivbma_kl(d.y, d.x, d.Z, d_h.y, d_h.x, d_h.Z),
+            ols(d.y, d.x, d.Z, d_h.y, d_h.x, d_h.Z),
             tsls(d.y, d.x, d.Z, d_h.y, d_h.x, d_h.Z),
             tsls(d.y, d.x, d.Z[:, (s+1):p], d.Z[:, 1:s], d_h.y, d_h.x, d_h.Z[:, 1:s]),
             sisVIVE(d.y, d.x, d.Z, d_h.y, d_h.x, d_h.Z)
@@ -141,7 +155,8 @@ function make_stacked_multicolumn_table(res)
     )
 
     # Header for each method
-    methods = ["gIVBMA (BRIC)", "gIVBMA (hyper-g/n)", "O-gIVBMA (hyper-g/n)", "IVBMA (KL)", "TSLS", "O-TSLS", "sisVIVE"]
+    methods = ["BMA (hyper-g/n)", "gIVBMA (BRIC)", "gIVBMA (hyper-g/n)", "O-gIVBMA (hyper-g/n)", "O-gIVBMA (2C)", "IVBMA (KL)", "OLS", "TSLS", "O-TSLS", "sisVIVE"]
+
 
     # Start the LaTeX table
     table_str = "\\begin{table}\n\\centering\n\\begin{tabular}{l*{8}{r}}\n\\toprule\n"
