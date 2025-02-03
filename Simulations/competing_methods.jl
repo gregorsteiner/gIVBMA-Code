@@ -76,55 +76,15 @@ end
     This function implements the post-lasso estimator using a first-stage lasso to select the instruments.
 """
 function post_lasso(y, x, Z, W, y_h, x_h, W_h; level = 0.05, sim = true)
-    n = length(y)
+    @rput y x Z W
+    R"res = hdm::rlassoIV(W, x, y, Z)"
+    @rget res
 
-    # First stage: Lasso regression of x on Z and W
-    V = [Z W]  # Instruments and control variables
-    fit_lasso = glmnetcv(V, x; alpha = 1.0, nfolds = 5)  # alpha=1 is the pure Lasso
-    
-    # Get the coefficients from the Lasso fit
-    idx = argmin(fit_lasso.meanloss)
-    coef_lasso = fit_lasso.path.betas[:, idx]
+    τ_hat = res[:coefficients]
+    sd_τ_hat = res[:se]
 
-    # Select instruments with non-zero coefficients (ignoring intercept)
-    selected_instruments = findall(coef_lasso[1:size(Z, 2)] .!= 0)
-
-    # If no instruments are selected, decrease lambda until at least one is selected
-    while isempty(selected_instruments) && idx < length(fit_lasso.path.lambda)
-        idx += 1
-        coef_lasso = fit_lasso.path.betas[:, idx]
-        selected_instruments = findall(coef_lasso[1:size(Z, 2)] .!= 0)
-    end
-
-    # Subset the instruments based on Lasso selection
-    Z_selected = Z[:, selected_instruments]
-    
-    # Combine selected instruments with the controls for the second stage
-    V = [ones(n) Z_selected W]   
-    P_V = V * inv(V'V) * V'
-    U = [ones(n) x W]
-
-    # Second stage: TSLS regression of y on x (using selected instruments and W)
-    β_hat = inv(U' * P_V * U) * U' * P_V * y
-    τ_hat = β_hat[2]
-
-    # Compute residuals and standard errors
-    residuals = y - U * β_hat
-    σ2_hat = sum(residuals.^2) / (n - size(U, 2))
-    sd_τ_hat = sqrt(σ2_hat * inv(U' * P_V * U)[2, 2])
-
-    # Confidence interval for τ_hat
     ci = τ_hat .+ [-1, 1] * quantile(Normal(0, 1), 1 - level/2) * sd_τ_hat
-
-    # Compute lps on holdout dataset
-    U_h = [ones(length(y_h)) x_h W_h]
-    lps = -logpdf(MvNormal(U_h * β_hat, σ2_hat * I), y_h) / length(y_h)
-
-    if sim
-        return (τ = τ_hat, CI = ci, lps = lps)
-    else 
-        return (τ = τ_hat, CI = ci, lps = lps, selected_instruments = selected_instruments)
-    end
+    return (τ = τ_hat, CI = ci, lps = lps)
 end
 
 
@@ -134,34 +94,26 @@ end
 function jive(y, x, Z, W, y_h, x_h, W_h; level = 0.05)
     n = length(y)
 
-    # First stage: Initialize vector for fitted values (Jackknife approach)
-    x_hat_jackknife = zeros(n)
+    U = [ones(n) x W]
+    U_jive = zeros(n, size(U, 2))
+    V = [ones(n) Z W]
 
+    # First stage: Obtain jackknife-predicted values
     for i in 1:n
-        # Remove the ith observation for Jackknife step
-        Z_i = Z[setdiff(1:n, i), :]
-        W_i = W[setdiff(1:n, i), :]
-        x_i = x[setdiff(1:n, i)]
-        
-        # Instrumental regression: x ~ Z + W (without ith observation)
-        V_i = [ones(n-1) Z_i W_i]
-        beta_hat_i = inv(V_i' * V_i) * V_i' * x_i
-        
-        # Predict x_hat for the ith observation
-        V_i_ith = [1; Z[i, :]; W[i, :]]
-        x_hat_jackknife[i] = V_i_ith' * beta_hat_i
+        V_i = V[setdiff(1:n, i), :]
+        U_i = U[setdiff(1:n, i), :]
+        beta_hat_i = inv(V_i' * V_i) * V_i' * U_i
+        U_jive[i, :] = V[i, :]' * beta_hat_i
     end
 
-    # Second stage: Run regression of y on x_hat_jackknife and W
-    U_jive = [ones(n) x_hat_jackknife W]
-    β_hat = inv(U_jive' * U_jive) * U_jive' * y
+    # Second stage: Run regression of y on jackknife U
+    β_hat = inv(U_jive' * U) * U_jive' * y
     τ_hat = β_hat[2]
 
     # Compute residuals and standard errors
-    U = [ones(n) x W]
     residuals = y - U * β_hat
     σ2_hat = sum(residuals.^2) / (n - size(U, 2))
-    sd_τ_hat = sqrt(σ2_hat * inv(U' * U)[2, 2])
+    sd_τ_hat = sqrt(σ2_hat * inv(U_jive' * U_jive)[2, 2])
 
     # Confidence interval for τ_hat
     ci = τ_hat .+ [-1, 1] * quantile(Normal(0, 1), 1 - level/2) * sd_τ_hat
@@ -179,39 +131,31 @@ end
 """
 function rjive(y, x, Z, W, y_h, x_h, W_h; level = 0.05)
     n = length(y)
-    p = size(Z, 2)
 
+    p = size(Z, 2)
     M_W = I - W * inv(W'W) * W'
     λ = var(M_W * x) * p # recommended choice in Hansen & Kozbur (2014)
 
-    # First stage: Initialize vector for fitted values (Jackknife approach)
-    x_hat_jackknife = zeros(n)
+    U = [ones(n) x W]
+    U_jive = zeros(n, size(U, 2))
+    V = [ones(n) Z W]
 
+    # First stage: Obtain jackknife-predicted values
     for i in 1:n
-        # Remove the ith observation for Jackknife step
-        Z_i = Z[setdiff(1:n, i), :]
-        W_i = W[setdiff(1:n, i), :]
-        x_i = x[setdiff(1:n, i)]
-        
-        # Instrumental regression: x ~ Z + W (without ith observation)
-        V_i = [ones(n-1) Z_i W_i]
-        beta_hat_i = inv(V_i' * V_i + λ * I) * V_i' * x_i
-        
-        # Predict x_hat for the ith observation
-        V_i_ith = [1; Z[i, :]; W[i, :]]
-        x_hat_jackknife[i] = V_i_ith' * beta_hat_i
+        V_i = V[setdiff(1:n, i), :]
+        U_i = U[setdiff(1:n, i), :]
+        beta_hat_i = inv(V_i' * V_i + λ * I) * V_i' * U_i
+        U_jive[i, :] = V[i, :]' * beta_hat_i
     end
 
     # Second stage: Run regression of y on x_hat_jackknife and W
-    U_jive = [ones(n) x_hat_jackknife W]
-    β_hat = inv(U_jive' * U_jive) * U_jive' * y
+    β_hat = inv(U_jive' * U) * U_jive' * y
     τ_hat = β_hat[2]
 
     # Compute residuals and standard errors
-    U = [ones(n) x W]
     residuals = y - U * β_hat
     σ2_hat = sum(residuals.^2) / (n - size(U, 2))
-    sd_τ_hat = sqrt(σ2_hat * inv(U' * U)[2, 2])
+    sd_τ_hat = sqrt(σ2_hat * inv(U_jive' * U_jive)[2, 2])
 
     # Confidence interval for τ_hat
     ci = τ_hat .+ [-1, 1] * quantile(Normal(0, 1), 1 - level/2) * sd_τ_hat

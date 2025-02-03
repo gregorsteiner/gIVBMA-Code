@@ -16,24 +16,25 @@ using gIVBMA
 logit(x) = exp(x) / (1+exp(x))
 
 # data generating function
-function gen_data(n, c, tau = [-1/2, 1/2], p = 10)
-    Z = rand(MvNormal(zeros(p), I), n)'
+function gen_data(n, c, τ)
     ι = ones(n)
 
-    α, τ, β = (0, tau, zeros(p))
-    Γ, Δ = ([0, 0], [(ones(p)) (ones(p))])
-    
+    Z_10 = rand(MvNormal(zeros(10), I), n)'
+    Z_15 = Z_10[:, 1:5] * [0.3, 0.5, 0.7, 0.9, 1.1] * ones(5)' + rand(Normal(0, 1), n, 5)
+    Z = [Z_10 Z_15]
+
     Σ = c .^ abs.((1:3) .- (1:3)')
     u = rand(MvNormal([0, 0, 0], Σ), n)'
 
-    Q = ι * Γ' + Z * Δ + u[:, 2:3] 
-    μ, r = (logit.(Q[:, 2]), 1)
+    Q = ι * [4, 4]' + Z[:, 1] * [2, -2]' + Z[:, 5] * [-1, 1]' + Z[:, 7] * [1.5, 1]' +Z[:, 11] *[1, 1]' + Z[:, 13] * [1/2, -1/2]' + u[:, 2:3] 
+
+    X_1 = Q[:, 1]
+    μ, r = (logit.(Q[:, 2]), 1/2)
     B_α, B_β = (μ * r, r * (1 .- μ))
     X_2 = [rand(Beta(B_α[i], B_β[i])) for i in eachindex(μ)]
-    X_1 = Q[:, 1]
     X = [X_1 X_2]
 
-    y = α*ι + X * τ + Z * β + u[:, 1]
+    y = ι + X * τ + u[:, 1]
 
     return (y = y, X = X, Z = Z)
 end
@@ -53,7 +54,7 @@ function bma_res(y, X, Z, y_h, X_h, Z_h; g_prior = "BRIC")
     )
 end
 
-function givbma_res(y, X, Z, y_h, X_h, Z_h; dist = ["Gaussian", "Gaussian", "Gaussian"], g_prior = "BRIC")
+function givbma_res(y, X, Z, y_h, X_h, Z_h; dist = ["Gaussian", "Gaussian", "BL"], g_prior = "BRIC")
     res = givbma(y, X, Z; dist = dist, g_prior = g_prior)
     lps_int = lps(res, y_h, X_h, Z_h)
     return (
@@ -62,7 +63,8 @@ function givbma_res(y, X, Z, y_h, X_h, Z_h; dist = ["Gaussian", "Gaussian", "Gau
             quantile(rbw(res)[1], [0.025, 0.975]),
             quantile(rbw(res)[2], [0.025, 0.975])
         ),
-        lps = lps_int
+        lps = lps_int,
+        M = res.M
     )
 end
 
@@ -94,12 +96,8 @@ function tsls(y, x, Z, y_h, x_h; level = 0.05)
 end
 
 # functions to compute the performance measures
-function squared_error_and_bias(τ_hat, true_tau)
-    return (
-        se = (τ_hat - true_tau)' * (τ_hat - true_tau),
-        bias = ones(length(τ_hat))' * (τ_hat - true_tau)
-    )
-end
+squared_error(τ_hat, true_tau) = (τ_hat - true_tau)' * (τ_hat - true_tau)
+
 
 
 function coverage(ci, true_tau)
@@ -111,20 +109,18 @@ function coverage(ci, true_tau)
 end
 
 # Wrapper function that runs the simulation
-function sim_func(m, n, c; tau = [-1/2, 1], p = 10)
-    meths = ["BMA (BRIC)", "BMA (hyper-g/n)", "gIVBMA (BRIC)", "gIVBMA (hyper-g/n)", "IVBMA (KL)", "TSLS"]
+function sim_func(m, n; c = 2/3, tau = [-1/2, 1])
+    meths = ["BMA (hyper-g/n)", "gIVBMA (BRIC)", "gIVBMA (hyper-g/n)", "IVBMA (KL)", "OLS", "TSLS", "O-TSLS"]
 
-    squared_error_store = Matrix(undef, m, length(meths))
-    bias_store = Matrix(undef, m, length(meths))
+    tau_store = zeros(m, length(meths), 2)
     times_covered = zeros(length(meths), 2)
     lps_store = Matrix(undef, m, length(meths))
 
     for i in ProgressBar(1:m)
-        d = gen_data(n, c, tau, p)
-        d_h = gen_data(Int(n/5), c, tau, p)
+        d = gen_data(n, c, tau)
+        d_h = gen_data(Int(n/5), c, tau)
 
         res = [
-            bma_res(d.y, d.X, d.Z, d_h.y, d_h.X, d_h.Z; g_prior = "BRIC"),
             bma_res(d.y, d.X, d.Z, d_h.y, d_h.X, d_h.Z; g_prior = "hyper-g/n"),
             givbma_res(d.y, d.X, d.Z, d_h.y, d_h.X, d_h.Z; dist = ["Gaussian", "Gaussian", "BL"], g_prior = "BRIC"),
             givbma_res(d.y, d.X, d.Z, d_h.y, d_h.X, d_h.Z; dist = ["Gaussian", "Gaussian", "BL"], g_prior = "hyper-g/n"),
@@ -151,9 +147,8 @@ end
     Run simulation
 """
 m, n = (100, 100)
-c = [0.3, 0.9]
 
-results_low = sim_func(m, n, c[1])
+results_low = sim_func(m, n)
 results_high = sim_func(m, n, c[2])
 
 """

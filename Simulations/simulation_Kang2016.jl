@@ -215,7 +215,7 @@ function make_stacked_multicolumn_table(res)
 
     # Finish the table
     table_str *= "\\bottomrule\n\\end{tabular}\n"
-    table_str *= "\\caption{Simulation results with s invalid instruments based on 100 simulated datasets. The best values in each column are printed in bold.}\n"
+    table_str *= "\\caption{Simulation results with s invalid instruments based on 100 simulated datasets. The best values in each column are printed in bold. The sisVIVE estimator does not provide any uncertainty quantification, so we set its coverage to NA.}\n"
     table_str *= "\\label{tab:Kang_Sim}\n\\end{table}"
 
     return table_str

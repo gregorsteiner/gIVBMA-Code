@@ -61,7 +61,7 @@ function bma_res(y, X, Z, y_h, X_h, Z_h; g_prior = "hyper-g/n")
 end
 
 function sim_func(m, n; c_M = 3/8, τ = 0.1, p = 20, k = 10, c = 1/2)
-    meths = ["BMA (hyper-g/n)", "gIVBMA (BRIC)", "gIVBMA (hyper-g/n)", "gIVBMA (2C)", "IVBMA (KL)", "OLS", "TSLS", "OTSLS", "JIVE", "RJIVE", "Post-Lasso", "MATSLS"]
+    meths = ["BMA (hyper-g/n)", "gIVBMA (BRIC)", "gIVBMA (hyper-g/n)", "gIVBMA (2C)", "IVBMA (KL)", "OLS", "TSLS", "O-TSLS", "JIVE", "RJIVE", "Post-Lasso", "MATSLS"]
 
     squared_error_store = Matrix(undef, m, length(meths))
     bias_store = Matrix(undef, m, length(meths))
@@ -157,7 +157,7 @@ function make_stacked_multicolumn_table(res)
     )
 
     # Header for each method
-    methods = ["BMA (hyper-g/n)", "gIVBMA (BRIC)", "gIVBMA (hyper-g/n)", "gIVBMA (2C)", "IVBMA (KL)", "OLS", "TSLS", "OTSLS", "JIVE", "RJIVE", "Post-Lasso", "MATSLS"]
+    methods = ["BMA (hyper-g/n)", "gIVBMA (BRIC)", "gIVBMA (hyper-g/n)", "gIVBMA (2C)", "IVBMA (KL)", "OLS", "TSLS", "O-TSLS", "JIVE", "RJIVE", "Post-Lasso", "MATSLS"]
 
     # Start the LaTeX table
     table_str = "\\begin{table}\n\\centering\n\\begin{tabular}{l*{8}{r}}\n\\toprule\n"
