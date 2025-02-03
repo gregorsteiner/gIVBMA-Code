@@ -41,7 +41,7 @@ function gen_data(n::Integer = 100, c_M::Number = 3/8, τ::Number = 0.1, p::Inte
 end
 
 function givbma_res(y, x, Z, W, y_h, x_h, Z_h, W_h; g_prior = "BRIC", two_comp = false)
-    res = givbma(y, x, Z, W; g_prior = g_prior, two_comp = two_comp, dist = ["Gaussian", "PLN"])
+    res = givbma(y, x, Z, W; g_prior = g_prior, two_comp = two_comp, dist = ["Gaussian", "PLN"], iter = 1200, burn = 200)
     lps_int = lps(res, y_h, x_h, Z_h, W_h)
     return (
         τ = mean(rbw(res)[1]),
@@ -51,7 +51,7 @@ function givbma_res(y, x, Z, W, y_h, x_h, Z_h, W_h; g_prior = "BRIC", two_comp =
 end
 
 function bma_res(y, X, Z, y_h, X_h, Z_h; g_prior = "hyper-g/n")
-    res = bma(y, X, Z; g_prior = g_prior)
+    res = bma(y, X, Z; g_prior = g_prior, iter = 1200, burn = 200)
     lps_int = lps_bma(res, y_h, X_h, Z_h)
     return (
         τ = mean(rbw_bma(res)[1]),
