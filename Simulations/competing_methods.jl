@@ -75,16 +75,20 @@ end
 """
     This function implements the post-lasso estimator using a first-stage lasso to select the instruments.
 """
-function post_lasso(y, x, Z, W, y_h, x_h, W_h; level = 0.05, sim = true)
+function post_lasso(y, x, Z, W, y_h, x_h, W_h; level = 0.05)
     @rput y x Z W
-    R"res = hdm::rlassoIV(W, x, y, Z)"
+    R"res = suppressMessages(hdm::rlassoIV(W, x, y, Z))" # The messages are suppressed for convenience, we still see that no instruments were selected when checking the standard error below
     @rget res
 
-    τ_hat = res[:coefficients]
-    sd_τ_hat = res[:se]
-
-    ci = τ_hat .+ [-1, 1] * quantile(Normal(0, 1), 1 - level/2) * sd_τ_hat
-    return (τ = τ_hat, CI = ci, lps = lps)
+    # if no instruments are selected, we just return missing values
+    if ismissing(res[:se])
+        return (τ = missing, CI = [missing, missing], lps = missing, no_instruments = true)
+    else
+        τ_hat = res[:coefficients]
+        sd_τ_hat = res[:se]
+        ci = τ_hat .+ [-1, 1] * quantile(Normal(0, 1), 1 - level/2) * sd_τ_hat
+        return (τ = τ_hat, CI = ci, lps = missing, no_instruments = false)
+    end
 end
 
 
