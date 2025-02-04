@@ -1,7 +1,7 @@
 using CairoMakie, LaTeXStrings
 using Distributions, Random, LinearAlgebra, KernelDensity
 
-##### Investigate the hyperprior on ν #####
+##### This code creates a plot of the implied priors by the hyperprior on ν #####
 
 # Define the Exponential priors
 xx = 2:0.01:5
@@ -74,4 +74,4 @@ Legend(fig[2, 1:3], ax2, orientation = :horizontal)
 fig[1, 1:2] = GridLayout(padding = (10, 10, 10, 40)) # Add space for the legend below
 
 # Save the figure
-save("Implied_prior_with_exponential.pdf", fig)
+save("Implied_prior_with_exponential.pdf", fig, size = (900, 400))
