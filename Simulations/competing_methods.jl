@@ -233,13 +233,26 @@ end
 """
     Implement the IVBMA procedure of Karl & Lenkoski based on their R package.
 """
-function ivbma_kl(y, X, Z, W, y_h, X_h, Z_h, W_h)
+function ivbma_kl(y, X, Z, W, y_h, X_h, Z_h, W_h; target_M = [1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0])
     n, l = (size(X, 1), size(X, 2))
 
     @rput y X Z W
     R"""
     source("ivbma.R")
-    res = ivbma(y, X, Z, cbind(rep(1, nrow(W)), W), print.every = 1e5)
+    max_attempts <- 5
+    attempt <- 1
+    # It sometimes happens that the ivbma code fails because of a singular matrix (this is usually within the Bartlett decomposition). We just retry it a few times (this rarely happens so should not affect the results too much)
+    while(attempt <= max_attempts) {
+        tryCatch({
+            res <- ivbma(y, X, Z, cbind(rep(1, nrow(W)), W), print.every = 1e5)
+            break  # If successful, exit the while loop
+        }, error = function(e) {
+            if(attempt == max_attempts) {
+                stop("Failed after ", max_attempts, " attempts. Last error: ", e$message)
+            }
+            attempt <- attempt + 1
+        })
+    }
     """
     @rget res
     # Store posterior sample
@@ -262,12 +275,20 @@ function ivbma_kl(y, X, Z, W, y_h, X_h, Z_h, W_h)
     scores_avg = mean(scores; dims = 2)
     lps = -mean(log.(scores_avg))
 
+    # compute posterior probability of true treatment model (this only matters for the simulation with multiple endogenous variables; we do not use this in the other scenarios)
+    M = res[:M][2:end, :, :]
+    posterior_probability_M = [mean(mapslices(slice -> slice[:, 1] == target_M, M, dims=[1,2])), mean(mapslices(slice -> slice[:, 2] == target_M, M, dims=[1,2]))]
+
+    # compute mean model size (if l>1 we average the model sizes for the different endogenous variables)
+    M_size_bar = mean(sum(M, dims = 1), dims = 3)[1, :, 1]
+
     return (
         τ = l == 1 ? mean(τ) : mean(τ, dims = 1)[1, :],
         CI = l == 1 ? quantile(τ, [0.025, 0.975]) : [quantile(τ[:, i], [0.025, 0.975]) for i in axes(τ, 2)],
         lps = lps,
-        L = res[:L_bar],
-        M = res[:M_bar]
+        posterior_probability_M = posterior_probability_M,
+        M_bar = res[:M_bar][2:end, :]',
+        M_size_bar = M_size_bar
     )
 end
 

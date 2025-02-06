@@ -26,10 +26,10 @@ function gen_data(n, c, τ)
     Σ = c .^ abs.((1:3) .- (1:3)')
     u = rand(MvNormal([0, 0, 0], Σ), n)'
 
-    Q = ι * [4, 4]' + Z[:, 1] * [2, -2]' + Z[:, 5] * [-1, 1]' + Z[:, 7] * [1.5, 1]' +Z[:, 11] *[1, 1]' + Z[:, 13] * [1/2, -1/2]' + u[:, 2:3] 
+    Q = ι * [4, -1]' + Z[:, 1] * [2, -2]' + Z[:, 5] * [-1, 1]' + Z[:, 7] * [1.5, 1]' + Z[:, 11] *[1, 1]' + Z[:, 13] * [1/2, -1/2]' + u[:, 2:3] 
 
     X_1 = Q[:, 1]
-    μ, r = (logit.(Q[:, 2]), 1/2)
+    μ, r = (logit.(Q[:, 2]), 1)
     B_α, B_β = (μ * r, r * (1 .- μ))
     X_2 = [rand(Beta(B_α[i], B_β[i])) for i in eachindex(μ)]
     X = [X_1 X_2]
@@ -42,21 +42,25 @@ end
 
 # wrapper functions for each method
 function bma_res(y, X, Z, y_h, X_h, Z_h; g_prior = "BRIC")
-    res = bma(y, X, Z; g_prior = g_prior)
+    res = bma(y, X, Z; g_prior = g_prior, iter = 1200, burn = 200)
     lps_int = lps_bma(res, y_h, X_h, Z_h)
     return (
-        τ = mean(res.τ; dims = 1)[1,:],
+        τ = map(mean, rbw_bma(res)),
         CI = (
-            quantile(res.τ[:, 1], [0.025, 0.975]),
-            quantile(res.τ[:, 2], [0.025, 0.975])
+            quantile(rbw_bma(res)[1], [0.025, 0.975]),
+            quantile(rbw_bma(res)[2], [0.025, 0.975])
         ),
         lps = lps_int
     )
 end
 
-function givbma_res(y, X, Z, y_h, X_h, Z_h; dist = ["Gaussian", "Gaussian", "BL"], g_prior = "BRIC")
-    res = givbma(y, X, Z; dist = dist, g_prior = g_prior)
+function givbma_res(y, X, Z, y_h, X_h, Z_h; dist = ["Gaussian", "Gaussian", "BL"], g_prior = "BRIC", target = [1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0])
+    res = givbma(y, X, Z; dist = dist, g_prior = g_prior, iter = 1200, burn = 200)
     lps_int = lps(res, y_h, X_h, Z_h)
+
+    # get posterior probability of the true treatment model
+    posterior_probability_M = mean(mapslices(row -> row == target, res.M, dims=2))
+
     return (
         τ = map(mean, rbw(res)),
         CI = (
@@ -64,7 +68,9 @@ function givbma_res(y, X, Z, y_h, X_h, Z_h; dist = ["Gaussian", "Gaussian", "BL"
             quantile(rbw(res)[2], [0.025, 0.975])
         ),
         lps = lps_int,
-        M = res.M
+        posterior_probability_M = posterior_probability_M,
+        M_bar = mean(res.M, dims = 1),
+        M_size_bar = mean(sum(res.M, dims = 2))
     )
 end
 
@@ -95,11 +101,7 @@ function tsls(y, x, Z, y_h, x_h; level = 0.05)
     return (τ = τ_hat, CI = ci, lps = lps)
 end
 
-# functions to compute the performance measures
-squared_error(τ_hat, true_tau) = (τ_hat - true_tau)' * (τ_hat - true_tau)
-
-
-
+# functions to compute the coverage
 function coverage(ci, true_tau)
     covg = Vector{Bool}(undef, length(true_tau))
     for i in eachindex(true_tau)
@@ -109,47 +111,61 @@ function coverage(ci, true_tau)
 end
 
 # Wrapper function that runs the simulation
-function sim_func(m, n; c = 2/3, tau = [-1/2, 1])
-    meths = ["BMA (hyper-g/n)", "gIVBMA (BRIC)", "gIVBMA (hyper-g/n)", "IVBMA (KL)", "OLS", "TSLS", "O-TSLS"]
+function sim_func(m, n; c = 2/3, tau = [1/2, -1/2])
+    meths = ["BMA (hyper-g/n)", "gIVBMA (BRIC)", "gIVBMA (hyper-g/n)", "IVBMA (KL)"]
 
-    tau_store = zeros(m, length(meths), 2)
+    tau_store = zeros(m, 2, length(meths))
     times_covered = zeros(length(meths), 2)
     lps_store = Matrix(undef, m, length(meths))
 
+    posterior_probability_M_store = zeros(m, 4)
+    mean_model_size_M_store = zeros(m, 4)
+    pip_M_store = zeros(m, 4, 15)
+
     for i in ProgressBar(1:m)
-        d = gen_data(n, c, tau)
-        d_h = gen_data(Int(n/5), c, tau)
+        y, X, Z = gen_data(n, c, tau)
+        y_h, X_h, Z_h = gen_data(Int(n/5), c, tau)
 
         res = [
-            bma_res(d.y, d.X, d.Z, d_h.y, d_h.X, d_h.Z; g_prior = "hyper-g/n"),
-            givbma_res(d.y, d.X, d.Z, d_h.y, d_h.X, d_h.Z; dist = ["Gaussian", "Gaussian", "BL"], g_prior = "BRIC"),
-            givbma_res(d.y, d.X, d.Z, d_h.y, d_h.X, d_h.Z; dist = ["Gaussian", "Gaussian", "BL"], g_prior = "hyper-g/n"),
-            ivbma_kl(d.y, d.X, d.Z, d_h.y, d_h.X, d_h.Z),
-            tsls(d.y, d.X, d.Z, d_h.y, d_h.X),
+            bma_res(y, X, Z, y_h, X_h, Z_h; g_prior = "hyper-g/n"),
+            givbma_res(y, X, Z, y_h, X_h, Z_h; g_prior = "BRIC"),
+            givbma_res(y, X, Z, y_h, X_h, Z_h; g_prior = "hyper-g/n"),
+            ivbma_kl(y, X, Z, y_h, X_h, Z_h)
         ]
 
-        calc = map(x -> squared_error_and_bias(x.τ, tau), res)
-        squared_error_store[i,:] = map(x -> x.se, calc)
-        bias_store[i,:] = map(x -> x.bias, calc)
+        tau_store[i,:, :] = reduce(hcat, map(x -> x.τ, res))
         covg = map(x -> coverage(x.CI, tau), res)
         times_covered += reduce(vcat, covg')
         lps_store[i,:] = map(x -> x.lps, res)
+
+        posterior_probability_M_store[i, :] = reduce(vcat, map(x -> x.posterior_probability_M, res[2:4]))
+        mean_model_size_M_store[i, :] = reduce(vcat, map(x -> x.M_size_bar, res[2:4]))
+        pip_M_store[i, :, :] = reduce(vcat, map(x -> Matrix(x.M_bar), res[2:4]))
     end
 
-    rmse = sqrt.(mean(squared_error_store, dims = 1))
-    bias = mean(bias_store, dims = 1)
-    lps = mean(lps_store, dims = 1)
+    mae = mapslices(slice -> median(mapslices(tau_hat -> sum(abs.(tau_hat - tau)), slice, dims = 2)), tau_store, dims = [1,2])[1, 1, :]
+    bias = mapslices(tau_hat -> sum(abs.(median(tau_hat, dims = 1)[1, :] - tau)), tau_store, dims = [1, 2])[1, 1, :]
+    lps = mean(lps_store, dims = 1)[1, :]
 
-    return (RMSE = rmse, Bias = bias, Coverage = times_covered ./ m, LPS = lps)
+    return (
+        MAE = mae, Bias = bias,
+        Coverage = times_covered ./ m, LPS = lps,
+        Posterior_Probability_true_M = posterior_probability_M_store,
+        PIP_M = pip_M_store,
+        Mean_Model_Size_M = mean_model_size_M_store
+    )
 end
 
 """
     Run simulation
 """
-m, n = (100, 100)
+m = 100
 
-results_low = sim_func(m, n)
-results_high = sim_func(m, n, c[2])
+results_low = sim_func(m, 50)
+results_high = sim_func(m, 500)
+
+
+bson("SimResMultEnd.bson", Dict(:n50 => results_low, :n500 => results_high))
 
 """
     Create table with results
