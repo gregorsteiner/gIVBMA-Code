@@ -234,9 +234,11 @@ println(table)
 
 using CairoMakie, LaTeXStrings
 
+
+# True posterior probability and mean model size
 function create_boxplots(X_1, Y_1, X_2, Y_2)
-    labels = [L"gIVBMA (BRIC)", L"gIVBMA (hyper-$g/n$)", L"IVBMA ($X_1$)", L"IVBMA ($X_2$)"]
-    titles = ["Posterior probability true model", "Mean model size"]
+    labels = [L"gIVBMA (BRIC$$)", L"gIVBMA (hyper-$g/n$)", L"IVBMA ($X_1$)", L"IVBMA ($X_2$)"]
+    titles = [L"\text{Posterior probability true model}", L"\text{Mean model size}"]
     
     n_categories = size(X_1, 2)
     positions = 1:n_categories
@@ -279,3 +281,65 @@ save("MultEndSimulation_Selection_Results.pdf", create_boxplots(
     res[:n500].Posterior_Probability_true_M,
     res[:n500].Mean_Model_Size_M
 ))
+
+
+# Posterior Inclusion probabilities
+function create_3d_boxplots(data_3d_1, data_3d_2; alpha = 0.7)
+    # data_3d: dimensions (samples, methods, variables)
+    n_samples, n_methods, n_variables = size(data_3d_1)
+    
+    # Color palette for methods
+    colors = Makie.wong_colors()[[1:3;6]]
+    
+    # Method labels
+    method_labels = [L"gIVBMA (BRIC$$)", L"gIVBMA (hyper-$g/n$)", L"IVBMA ($X_1$)", L"IVBMA ($X_2$)"]
+    
+    fig = Figure()
+    
+    # First row
+    ax1 = Axis(fig[1, 1])
+    plot_elements = []
+    
+    for var in 1:n_variables
+        for method in 1:n_methods
+            x_pos = var
+            bp = boxplot!(ax1, fill(x_pos, n_samples), 
+                     data_3d_1[:, method, var], 
+                     color=(colors[method], alpha),
+                     label=method_labels[method])
+            
+            if var == 1
+                push!(plot_elements, bp)
+            end
+        end
+    end
+    
+    ax1.xticks = (1:n_variables, ["Z$i" for i in 1:n_variables])
+    
+    # Second row
+    ax2 = Axis(fig[2, 1])
+    
+    for var in 1:n_variables
+        for method in 1:n_methods
+            x_pos = var
+            boxplot!(ax2, fill(x_pos, n_samples), 
+                     data_3d_2[:, method, var], 
+                     color=(colors[method], alpha))
+        end
+    end
+    
+    ax2.xticks = (1:n_variables, ["Z$i" for i in 1:n_variables])
+    
+    # Shared legend
+    Legend(fig[3, 1], plot_elements, method_labels, 
+           orientation=:horizontal, 
+           tellwidth=false, 
+           margin=(10, 10, 10, 10))
+    
+    return fig
+end
+
+save(
+    "MultEndSimulation_PIPs.pdf",
+    create_3d_boxplots(res[:n50].PIP_M, res[:n500].PIP_M)
+)
