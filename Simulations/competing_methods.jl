@@ -6,69 +6,60 @@ using Distributions, LinearAlgebra, GLMNet, JuMP, RCall
 """
 function tsls(y, x, Z, W, y_h, x_h, W_h; level = 0.05)
     n = length(y)
+    l = size(x, 2)
 
     U = [ones(n) x W]
     V = [ones(n) Z W]  
     P_V = V * inv(V'V) * V'
     
     β_hat = inv(U' * P_V * U) * U' * P_V * y
-    τ_hat = β_hat[2]
+    τ_hat = β_hat[2:(l+1)]
 
     residuals = y - U * β_hat
     σ2_hat = sum(residuals.^2) / (n - size(U, 2))
-    sd_τ_hat = sqrt(σ2_hat * inv(U' * P_V * U)[2, 2])
-    ci = τ_hat .+ [-1, 1] * quantile(Normal(0, 1), 1 - level/2) * sd_τ_hat
+    cov = σ2_hat * inv(U' * P_V * U)
+    cov_τ = cov[2:(l+1), 2:(l+1)]
+    ci = [τ_hat[j] .+ [-1, 1] * quantile(Normal(0, 1), 1 - level/2) * sqrt(cov_τ[j, j]) for j in eachindex(τ_hat)]
 
     # compute lps on holdout dataset
     U_h = [ones(length(y_h)) x_h W_h]
     lps = -logpdf(MvNormal(U_h * β_hat, σ2_hat * I), y_h) / length(y_h)
 
-    return (τ = τ_hat, CI = ci, lps = lps)
+    return (
+        τ = l == 1 ? τ_hat[1] : τ_hat,
+        CI = l == 1 ? ci[1] : ci,
+        lps = lps
+    )
 end
 
-function tsls(y, x, Z, y_h, x_h, Z_h; level = 0.05)
-    n = length(y)
-
-    U = [ones(n) x]
-    V = [ones(n) Z]  
-    P_V = V * inv(V'V) * V'
-    
-    β_hat = inv(U' * P_V * U) * U' * P_V * y
-    τ_hat = β_hat[2]
-
-    residuals = y - U * β_hat
-    σ2_hat = sum(residuals.^2) / (n - size(U, 2))
-    sd_τ_hat = sqrt(σ2_hat * inv(U' * P_V * U)[2, 2])
-    ci = τ_hat .+ [-1, 1] * quantile(Normal(0, 1), 1 - level/2) * sd_τ_hat
-
-    # compute lps on holdout dataset
-    U_h = [ones(length(y_h)) x_h]
-    lps = -logpdf(MvNormal(U_h * β_hat, σ2_hat * I), y_h) / length(y_h)
-
-    return (τ = τ_hat, CI = ci, lps = lps)
-end
+tsls(y, x, Z, y_h, x_h, Z_h; level = 0.05) = tsls(y, x, Z, Matrix{Float64}(undef, length(y), 0), y_h, x_h, Matrix{Float64}(undef, length(y), 0); level = level)
 
 """
     OLS estimator.
 """
-function ols(y, x, W, y_h, x_h, W_h; level = 0.05)
+function ols(y, X, W, y_h, X_h, W_h; level = 0.05)
     n = length(y)
-    U = [ones(n) x W]
-    k = size(U, 2)
+    l = size(X, 2)
+    U = [ones(n) X W]
 
     β_hat = inv(U'U) * U'y
-    τ_hat = β_hat[2]
+    τ_hat = β_hat[2:(l+1)]
 
     residuals = y - U * β_hat
     σ2_hat = sum(residuals.^2) / (n - size(U, 2))
     cov = σ2_hat * inv(U'U)
-    sd_τ_hat = sqrt(cov[2,2])
-    ci = τ_hat .+ [-1, 1] * quantile(Normal(0, 1), 1 - level/2) * sd_τ_hat
+    cov_τ = cov[2:(l+1), 2:(l+1)]
+    
+    ci = [τ_hat[j] .+ [-1, 1] * quantile(Normal(0, 1), 1 - level/2) * sqrt(cov_τ[j, j]) for j in eachindex(τ_hat)]
 
-    U_h = [ones(length(y_h)) x_h W_h]
+    U_h = [ones(length(y_h)) X_h W_h]
     lps = -logpdf(MvNormal(U_h * β_hat, σ2_hat * I), y_h) / length(y_h)
 
-    return (τ = τ_hat, CI = ci, lps = lps)
+    return (
+        τ = l == 1 ? τ_hat[1] : τ_hat,
+        CI = l == 1 ? ci[1] : ci,
+        lps = lps
+    )
 end
 
 
@@ -179,27 +170,34 @@ include("MA2SLS.jl")
 
 function matsls(y, x, Z, W, y_h, x_h, W_h; level = 0.05)
     n = length(y)
+    l = size(x, 2)
     
     res = MA2SLS_raw(y, W, x, Z)
-    
+
     β_hat = res[1]
-    τ_hat = β_hat[end]
+    τ_hat = β_hat[(end-(l-1)):end] # the last l elements of the coefficient vector are estimates of τ
 
     # Compute residuals and standard errors
     U = [ones(n) W x]
     residuals = y - U * β_hat
     σ2_hat = sum(residuals.^2) / (n - size(U, 2))
-    sd_τ_hat = res[2][end]
+    sd_τ_hat = res[2][(end-(l-1)):end]
 
-    # Confidence interval for τ_hat
-    ci = τ_hat .+ [-1, 1] * quantile(Normal(0, 1), 1 - level/2) * sd_τ_hat
+    # compute CI
+    ci = [τ_hat[j] .+ [-1, 1] * quantile(Normal(0, 1), 1 - level/2) * sd_τ_hat[j] for j in eachindex(τ_hat)]
 
     # Compute lps on holdout dataset
     U_h = [ones(length(y_h)) W_h x_h]
     lps = -logpdf(MvNormal(U_h * β_hat, σ2_hat * I), y_h) / length(y_h)
 
-    return (τ = τ_hat, CI = ci, lps = lps)
+    return (
+        τ = l == 1 ? τ_hat[1] : τ_hat,
+        CI = l == 1 ? ci[1] : ci,
+        lps = lps
+    )
 end
+
+matsls(y, x, Z, y_h, x_h, Z_h; level = 0.05) = matsls(y, x, Z, Matrix{Float64}(undef, length(y), 0), y_h, x_h, Matrix{Float64}(undef, length(y), 0); level = level)
 
 
 """

@@ -74,32 +74,6 @@ function givbma_res(y, X, Z, y_h, X_h, Z_h; dist = ["Gaussian", "Gaussian", "BL"
     )
 end
 
-function tsls(y, x, Z, y_h, x_h; level = 0.05)
-    n = length(y)
-
-    U = [ones(n) x]
-    V = [ones(n) Z]  
-    P_V = V * inv(V'V) * V'
-    
-    β_hat = inv(U' * P_V * U) * U' * P_V * y
-    τ_hat = β_hat[2:end]
-
-    residuals = y - U * β_hat
-    σ2_hat = sum(residuals.^2) / (n - size(U, 2))
-
-    cov_τ = (σ2_hat * inv(U' * P_V * U))[2:end, 2:end]
-    
-    ci = (
-        τ_hat[1] .+ [-1, 1] * quantile(Normal(0, 1), 1 - level/2) * sqrt(cov_τ[1, 1]),
-        τ_hat[2] .+ [-1, 1] * quantile(Normal(0, 1), 1 - level/2) * sqrt(cov_τ[2, 2])
-    )
-
-    # compute lps on holdout dataset
-    U_h = [ones(length(y_h)) x_h]
-    lps = -logpdf(MvNormal(U_h * β_hat, σ2_hat * I), y_h) / length(y_h)
-
-    return (τ = τ_hat, CI = ci, lps = lps)
-end
 
 # functions to compute the coverage
 function coverage(ci, true_tau)
