@@ -32,7 +32,7 @@ function tsls(y, x, Z, W, y_h, x_h, W_h; level = 0.05)
     )
 end
 
-tsls(y, x, Z, y_h, x_h, Z_h; level = 0.05) = tsls(y, x, Z, Matrix{Float64}(undef, length(y), 0), y_h, x_h, Matrix{Float64}(undef, length(y), 0); level = level)
+tsls(y, x, Z, y_h, x_h, Z_h; level = 0.05) = tsls(y, x, Z, Matrix{Float64}(undef, length(y), 0), y_h, x_h, Matrix{Float64}(undef, length(y_h), 0); level = level)
 
 """
     OLS estimator.
@@ -197,7 +197,7 @@ function matsls(y, x, Z, W, y_h, x_h, W_h; level = 0.05)
     )
 end
 
-matsls(y, x, Z, y_h, x_h, Z_h; level = 0.05) = matsls(y, x, Z, Matrix{Float64}(undef, length(y), 0), y_h, x_h, Matrix{Float64}(undef, length(y), 0); level = level)
+matsls(y, x, Z, y_h, x_h, Z_h; level = 0.05) = matsls(y, x, Z, Matrix{Float64}(undef, length(y), 0), y_h, x_h, Matrix{Float64}(undef, length(y_h), 0); level = level)
 
 
 """

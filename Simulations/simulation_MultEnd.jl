@@ -9,9 +9,7 @@ using Pkg; Pkg.activate("../../gIVBMA")
 using gIVBMA
 
 
-"""
-    Define auxiliary functions
-"""
+##### Define auxiliary functions #####
 # logistic function
 logit(x) = exp(x) / (1+exp(x))
 
@@ -86,7 +84,7 @@ end
 
 # Wrapper function that runs the simulation
 function sim_func(m, n; c = 2/3, tau = [1/2, -1/2])
-    meths = ["BMA (hyper-g/n)", "gIVBMA (BRIC)", "gIVBMA (hyper-g/n)", "IVBMA (KL)"]
+    meths = ["BMA (hyper-g/n)", "gIVBMA (BRIC)", "gIVBMA (hyper-g/n)", "IVBMA (KL)", "OLS", "TSLS", "O-TSLS", "MATSLS"]
 
     tau_store = zeros(m, 2, length(meths))
     times_covered = zeros(length(meths), 2)
@@ -104,7 +102,11 @@ function sim_func(m, n; c = 2/3, tau = [1/2, -1/2])
             bma_res(y, X, Z, y_h, X_h, Z_h; g_prior = "hyper-g/n"),
             givbma_res(y, X, Z, y_h, X_h, Z_h; g_prior = "BRIC"),
             givbma_res(y, X, Z, y_h, X_h, Z_h; g_prior = "hyper-g/n"),
-            ivbma_kl(y, X, Z, y_h, X_h, Z_h)
+            ivbma_kl(y, X, Z, y_h, X_h, Z_h),
+            ols(y, X, Z, y_h, X_h, Z_h),
+            tsls(y, X, Z, y_h, X_h, Z_h),
+            tsls(y, X, Z[:, [1, 5, 7, 11, 13]], y_h, X_h, Z_h[:, [1, 5, 7, 11, 13]]),
+            matsls(y, X, Z, y_h, X_h, Z_h)
         ]
 
         tau_store[i,:, :] = reduce(hcat, map(x -> x.τ, res))
@@ -130,92 +132,89 @@ function sim_func(m, n; c = 2/3, tau = [1/2, -1/2])
     )
 end
 
-"""
-    Run simulation
-"""
+##### Run simulation #####
+
 m = 100
 
 results_low = sim_func(m, 50)
 results_high = sim_func(m, 500)
 
-
 bson("SimResMultEnd.bson", Dict(:n50 => results_low, :n500 => results_high))
 
-"""
-    Create table with results
-"""
-
-low_endog = [results_low.RMSE' results_low.Bias' results_low.Coverage results_low.LPS']
-high_endog = [results_high.RMSE' results_high.Bias' results_high.Coverage results_high.LPS']
-
-# save results to reuse later
-bson("SimResMultEnd.bson", Dict(:low => low_endog, :high => high_endog))
+##### Create Latex table with results #####
 res = BSON.load("SimResMultEnd.bson")
 
-low_endog = round.(res[:low], digits = 2)
-high_endog = round.(res[:high], digits = 2)
+function format_result(res)
+    tab = [res.MAE res.Bias res.Coverage res.LPS]
+    return round.(tab, digits = 2)
+end
+
+res50 = format_result(res[:n50])
+res500 = format_result(res[:n500])
 
 # Define row names
 row_names = [
-    "BMA (BRIC)",
     "BMA (hyper-g/n)",
     "gIVBMA (BRIC)",
     "gIVBMA (hyper-g/n)",
     "IVBMA (KL)",
-    "TSLS"
+    "OLS",
+    "TSLS",
+    "O-TSLS",
+    "MATSLS"
 ]
 
 # Helper function to bold the best value
 highlight(value, best_value) = value == best_value ? "\\textbf{$(value)}" : string(value)
 
 # Determine the best values within each scenario
-best_low_rmse = minimum(low_endog[:, 1])
-best_low_bias = low_endog[argmin(abs.(low_endog[:, 2]))[1], 2]
-best_low_covg_x1 = low_endog[argmin(abs.(low_endog[:, 3] .- 0.95))[1], 3]
-best_low_covg_x2 = low_endog[argmin(abs.(low_endog[:, 4] .- 0.95))[1], 4]
-best_low_lps = minimum(low_endog[:, 5])
+best_low_mae = minimum(res50[:, 1])
+best_low_bias = res50[argmin(abs.(res50[:, 2]))[1], 2]
+best_low_covg_x1 = res50[argmin(abs.(res50[:, 3] .- 0.95))[1], 3]
+best_low_covg_x2 = res50[argmin(abs.(res50[:, 4] .- 0.95))[1], 4]
+best_low_lps = minimum(res50[:, 5])
 
-best_high_rmse = minimum(high_endog[:, 1])
-best_high_bias = high_endog[argmin(abs.(high_endog[:, 2]))[1], 2]
-best_high_covg_x1 = high_endog[argmin(abs.(high_endog[:, 3] .- 0.95))[1], 3]
-best_high_covg_x2 = high_endog[argmin(abs.(high_endog[:, 4] .- 0.95))[1], 4]
-best_high_lps = minimum(high_endog[:, 5])
+best_high_mae = minimum(res500[:, 1])
+best_high_bias = res500[argmin(abs.(res500[:, 2]))[1], 2]
+best_high_covg_x1 = res500[argmin(abs.(res500[:, 3] .- 0.95))[1], 3]
+best_high_covg_x2 = res500[argmin(abs.(res500[:, 4] .- 0.95))[1], 4]
+best_high_lps = minimum(res500[:, 5])
 
 # Start building the LaTeX table as a string
-table = "\\begin{table}[h!]\n\\centering\n"
+table = "\\begin{table}[h]\n\\centering\n"
 table *= "\\begin{tabular}{lccccc}\n"
 table *= "\\toprule\n"
-table *= "\\multicolumn{6}{c}{Low Endogeneity} \\\\\n"
+table *= "\\multicolumn{6}{c}{\$n=50\$} \\\\\n"
 table *= "\\midrule\n"
-table *= " & \\textbf{RMSE} & \\textbf{Bias} & \\textbf{Cov. X1} & \\textbf{Cov. X2} & \\textbf{LPS} \\\\\n"
+table *= " & \\textbf{MAE} & \\textbf{Bias} & \\textbf{Cov. X1} & \\textbf{Cov. X2} & \\textbf{LPS} \\\\\n"
 table *= "\\midrule\n"
 
 # Populate rows for Low Endogeneity with highlighted best values
 for i in eachindex(row_names)
     row = row_names[i] * " & "
-    row *= highlight(low_endog[i, 1], best_low_rmse) * " & "
-    row *= highlight(low_endog[i, 2], best_low_bias) * " & "
-    row *= highlight(low_endog[i, 3], best_low_covg_x1) * " & "
-    row *= highlight(low_endog[i, 4], best_low_covg_x2) * " & "
-    row *= highlight(low_endog[i, 5], best_low_lps) * " \\\\\n"
+    row *= highlight(res50[i, 1], best_low_mae) * " & "
+    row *= highlight(res50[i, 2], best_low_bias) * " & "
+    row *= highlight(res50[i, 3], best_low_covg_x1) * " & "
+    row *= highlight(res50[i, 4], best_low_covg_x2) * " & "
+    row *= highlight(res50[i, 5], best_low_lps) * " \\\\\n"
     global table *= row
 end
 
 # Add a midrule to separate Low and High Endogeneity sections
 table *= "\\midrule\n"
-table *= "\\multicolumn{6}{c}{High Endogeneity} \\\\\n"
+table *= "\\multicolumn{6}{c}{\$n=500\$} \\\\\n"
 table *= "\\midrule\n"
-table *= " & \\textbf{RMSE} & \\textbf{Bias} & \\textbf{Cov. X1} & \\textbf{Cov. X2} & \\textbf{LPS} \\\\\n"
+table *= " & \\textbf{MAE} & \\textbf{Bias} & \\textbf{Cov. X1} & \\textbf{Cov. X2} & \\textbf{LPS} \\\\\n"
 table *= "\\midrule\n"
 
 # Populate rows for High Endogeneity with highlighted best values
 for i in eachindex(row_names)
     row = row_names[i] * " & "
-    row *= highlight(high_endog[i, 1], best_high_rmse) * " & "
-    row *= highlight(high_endog[i, 2], best_high_bias) * " & "
-    row *= highlight(high_endog[i, 3], best_high_covg_x1) * " & "
-    row *= highlight(high_endog[i, 4], best_high_covg_x2) * " & "
-    row *= highlight(high_endog[i, 5], best_high_lps) * " \\\\\n"
+    row *= highlight(res500[i, 1], best_high_mae) * " & "
+    row *= highlight(res500[i, 2], best_high_bias) * " & "
+    row *= highlight(res500[i, 3], best_high_covg_x1) * " & "
+    row *= highlight(res500[i, 4], best_high_covg_x2) * " & "
+    row *= highlight(res500[i, 5], best_high_lps) * " \\\\\n"
     global table *= row
 end
 
@@ -229,3 +228,54 @@ table *= "\\end{table}"
 # Print the LaTeX code
 println(table)
 
+
+
+##### Create graphs with selection results #####
+
+using CairoMakie, LaTeXStrings
+
+function create_boxplots(X_1, Y_1, X_2, Y_2)
+    labels = [L"gIVBMA (BRIC)", L"gIVBMA (hyper-$g/n$)", L"IVBMA ($X_1$)", L"IVBMA ($X_2$)"]
+    titles = ["Posterior probability true model", "Mean model size"]
+    
+    n_categories = size(X_1, 2)
+    positions = 1:n_categories
+    
+    fig = Figure()
+    
+    # First row
+    ax1 = Axis(fig[1, 1], title=titles[1], xticklabelsvisible=false, ylabel = L"n = 50")
+    ax2 = Axis(fig[1, 2], title=titles[2], xticklabelsvisible=false)
+    
+    # Second row
+    # Second row - with rotated and smaller labels
+    ax3 = Axis(fig[2, 1], 
+        xticks = (positions, labels), 
+        ylabel = L"n = 500", 
+        xticklabelrotation = pi/4,  # 45-degree rotation
+        xticklabelsize = 12)  # Smaller font size
+    ax4 = Axis(fig[2, 2], 
+        xticks = (positions, labels), 
+        xticklabelrotation = pi/4,  # 45-degree rotation
+        xticklabelsize = 12)
+    
+    # First row plots
+    boxplot!(ax1, repeat(positions, inner=size(X_1, 1)), vec(X_1))
+    boxplot!(ax2, repeat(positions, inner=size(Y_1, 1)), vec(Y_1))
+    
+    # Second row plots
+    boxplot!(ax3, repeat(positions, inner=size(X_2, 1)), vec(X_2))
+    boxplot!(ax4, repeat(positions, inner=size(Y_2, 1)), vec(Y_2))
+    
+    # Adjust layout
+    fig[1:2, 1:2] = [ax1 ax2; ax3 ax4]
+    
+    return fig
+end
+
+save("MultEndSimulation_Selection_Results.pdf", create_boxplots(
+    res[:n50].Posterior_Probability_true_M,
+    res[:n50].Mean_Model_Size_M,
+    res[:n500].Posterior_Probability_true_M,
+    res[:n500].Mean_Model_Size_M
+))
