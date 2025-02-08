@@ -75,7 +75,7 @@ density!(ax, map(x -> x[1,1], res_bric.Σ))
 pf
 
 # Create table summarising the results
-function create_latex_table(res_bric, res_hg)
+function create_latex_table(res_bric, res_hg, res_bma)
     row_names = ["maleco", "lnmort", "frost", "humid", "latitude", "eurfrac", "engfrac", "coast", "trade"]
 
     # Unpack tau estimates for rule and malfal models
@@ -92,32 +92,36 @@ function create_latex_table(res_bric, res_hg)
     Σ_12_hg = post_mean_and_ci(map(x -> x[1,2], res_hg.Σ))
     Σ_13_hg = post_mean_and_ci(map(x -> x[1,3], res_hg.Σ))
 
+    rbwbma = rbw_bma(res_bma)
+    rule_bma = post_mean_and_ci(rbwbma[1])
+    malfal_bma = post_mean_and_ci(rbwbma[2])
+
     # PIP table
-    PIP_tab = [mean(res_bric.L; dims = 1)' mean(res_bric.M; dims = 1)' mean(res_hg.L; dims = 1)' mean(res_hg.M; dims = 1)']
+    PIP_tab = [mean(res_bric.L; dims = 1)' mean(res_bric.M; dims = 1)' mean(res_hg.L; dims = 1)' mean(res_hg.M; dims = 1)' mean(res_bma.L; dims = 1)']
 
     # Start LaTeX table
     table = """
-    \\begin{table}[h!]
+    \\begin{table}[h]
     \\centering
-    \\begin{tabular}{lcccc}
+    \\begin{tabular}{lcccccc}
     \\toprule
-    & \\multicolumn{2}{c}{\\textbf{BRIC}} & \\multicolumn{2}{c}{\\textbf{hyper-g/n(a=3)}} \\\\
-    \\cmidrule(lr){2-3} \\cmidrule(lr){4-5}
-    & Mean & 95\\% CI & Mean & 95\\% CI \\\\
+    & \\multicolumn{2}{c}{\\textbf{gIVBMA (BRIC)}} & \\multicolumn{2}{c}{\\textbf{gIVBMA (hyper-g/n)}} & \\multicolumn{2}{c}{\\textbf{BMA (hyper-g/n)}}\\\\
+    \\cmidrule(lr){2-3} \\cmidrule(lr){4-5} \\cmidrule(lr){6-7}
+    & Mean & 95\\% CI & Mean & 95\\% CI & Mean & 95\\% CI \\\\
     \\midrule
-     rule & $(rule_bric[1]) &  [$(rule_bric[2]), $(rule_bric[3])]  & $(rule_hg[1]) & [$(rule_hg[2]), $(rule_hg[3])] \\\\
-     malfal & $(malfal_bric[1]) &  [$(malfal_bric[2]), $(malfal_bric[3])]  & $(malfal_hg[1]) & [$(malfal_hg[2]), $(malfal_hg[3])] \\\\
-     \\sigma_{12} & $(Σ_12_bric[1]) &  [$(Σ_12_bric[2]), $(Σ_12_bric[3])]  & $(Σ_12_hg[1]) & [$(Σ_12_hg[2]), $(Σ_12_hg[3])] \\\\
-     \\sigma_{13} & $(Σ_13_bric[1]) &  [$(Σ_13_bric[2]), $(Σ_13_bric[3])]  & $(Σ_13_hg[1]) & [$(Σ_13_hg[2]), $(Σ_13_hg[3])] \\\\
+     rule & $(rule_bric[1]) &  [$(rule_bric[2]), $(rule_bric[3])]  & $(rule_hg[1]) & [$(rule_hg[2]), $(rule_hg[3])] & $(rule_bma[1]) & [$(rule_bma[2]), $(rule_bma[3])] \\\\
+     malfal & $(malfal_bric[1]) &  [$(malfal_bric[2]), $(malfal_bric[3])]  & $(malfal_hg[1]) & [$(malfal_hg[2]), $(malfal_hg[3])] & $(malfal_bma[1]) & [$(malfal_bma[2]), $(malfal_bma[3])] \\\\
+     \$\\sigma_{12}\$ & $(Σ_12_bric[1]) &  [$(Σ_12_bric[2]), $(Σ_12_bric[3])]  & $(Σ_12_hg[1]) & [$(Σ_12_hg[2]), $(Σ_12_hg[3])] & - & -\\\\
+     \$\\sigma_{13}\$ & $(Σ_13_bric[1]) &  [$(Σ_13_bric[2]), $(Σ_13_bric[3])]  & $(Σ_13_hg[1]) & [$(Σ_13_hg[2]), $(Σ_13_hg[3])] & - & -\\\\
     \\midrule
-    & PIP L & PIP M & PIP L & PIP M \\\\
+    & PIP L & PIP M & PIP L & PIP M & PIP L & PIP M \\\\
     \\midrule
     """
 
     # Add rows with data
     for i in 1:9
         row = row_names[i]
-        table *= "$row & $(round(PIP_tab[i,1], digits=2)) & $(round(PIP_tab[i,2], digits=2)) & $(round(PIP_tab[i,3], digits=2)) & $(round(PIP_tab[i,4], digits=2)) \\\\\n"
+        table *= "$row & $(round(PIP_tab[i,1], digits=2)) & $(round(PIP_tab[i,2], digits=2)) & $(round(PIP_tab[i,3], digits=2)) & $(round(PIP_tab[i,4], digits=2)) &  $(round(PIP_tab[i,5], digits=2)) & - \\\\\n"
     end
 
 
@@ -125,7 +129,7 @@ function create_latex_table(res_bric, res_hg)
     table *= """
     \\bottomrule
     \\end{tabular}
-    \\caption{Treatment effect estimates (posterior mean and 95\\% credible interval) and posterior inclusion probabilities (PIP) in outcome (L) and treatment (M) models for rule and malfal as endogenous variables. The algorithm was run for 10,000 iterations (the first 2,000 of which were discarded as burn-in).}
+    \\caption{\\textbf{Geography or institutions?} Treatment effect estimates (posterior mean and 95\\% credible interval) and posterior inclusion probabilities (PIP) in outcome (L) and treatment (M) models for rule and malfal as endogenous variables. The algorithm was run for 10,000 iterations (the first 2,000 of which were discarded as burn-in).}
     \\label{tab:CG_results}
     \\end{table}
     """
@@ -133,7 +137,7 @@ function create_latex_table(res_bric, res_hg)
     return table
 end
 
-println(create_latex_table(res_bric, res_hg))
+println(create_latex_table(res_bric, res_hg, res_bma))
 
 
 ##### LPS analysis #####
