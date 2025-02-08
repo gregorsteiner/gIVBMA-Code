@@ -284,62 +284,51 @@ save("MultEndSimulation_Selection_Results.pdf", create_boxplots(
 
 
 # Posterior Inclusion probabilities
-function create_3d_boxplots(data_3d_1, data_3d_2; alpha = 0.7)
-    # data_3d: dimensions (samples, methods, variables)
-    n_samples, n_methods, n_variables = size(data_3d_1)
+function create_comparison_table(n50_data, n500_data)
+    # Method names
+    methods = ["gIVBMA (BRIC)", "gIVBMA (hyper-g/n)", "IVBMA (X1)", "IVBMA (X2)"]
     
-    # Color palette for methods
-    colors = Makie.wong_colors()[[1:3;6]]
+    # Start the LaTeX table
+    latex_output = """
+    \\begin{table}[h]
+    \\centering
+    \\begin{tabular}{l*{8}{c}}
+    \\toprule
+    & \\multicolumn{2}{c}{gIVBMA (BRIC)} & \\multicolumn{2}{c}{gIVBMA (hyper-g/n)} & \\multicolumn{2}{c}{IVBMA (X1)} & \\multicolumn{2}{c}{IVBMA (X2)} \\\\
+    \\cmidrule(lr){2-3} \\cmidrule(lr){4-5} \\cmidrule(lr){6-7} \\cmidrule(lr){8-9}
+    Variable"""
     
-    # Method labels
-    method_labels = [L"gIVBMA (BRIC$$)", L"gIVBMA (hyper-$g/n$)", L"IVBMA ($X_1$)", L"IVBMA ($X_2$)"]
+    # Add sample sizes
+    for _ in 1:4
+        latex_output *= " & n=50 & n=500"
+    end
+    latex_output *= " \\\\\n\\midrule\n"
     
-    fig = Figure()
-    
-    # First row
-    ax1 = Axis(fig[1, 1])
-    plot_elements = []
-    
-    for var in 1:n_variables
-        for method in 1:n_methods
-            x_pos = var
-            bp = boxplot!(ax1, fill(x_pos, n_samples), 
-                     data_3d_1[:, method, var], 
-                     color=(colors[method], alpha),
-                     label=method_labels[method])
+    # Add data rows
+    for var in 1:15
+        latex_output *= var ∈ [1, 5, 7, 11, 13] ? string("\$\\boldsymbol{Z_{", var) *"}}\$" : string("\$Z_{", var) *"}\$"
+        
+        for method in 1:4
+            # n50 value
+            median_val = round(median(n50_data[:, method, var]), digits=3)
+            latex_output *= " & \$" * string(median_val) * "\$"
             
-            if var == 1
-                push!(plot_elements, bp)
-            end
+            # n500 value
+            median_val = round(median(n500_data[:, method, var]), digits=3)
+            latex_output *= " & \$" * string(median_val) * "\$"
         end
+        
+        latex_output *= " \\\\\n"
     end
     
-    ax1.xticks = (1:n_variables, ["Z$i" for i in 1:n_variables])
+    # Close the table
+    latex_output *= """\\bottomrule
+    \\end{tabular}
+    \\caption{\\textbf{Multiple endogenous variables with correlated instruments:} Median treatment posterior inclusion probabilities across 100 simulated datasets. The instruments included in the true model are printed in bold. Note that IVBMA uses separate treatment models for the two endogenous variables \$X_1\$ and \$X_2\$.}
+    \\label{tab:SimMultEnd_PIPs}
+    \\end{table}
+    """
     
-    # Second row
-    ax2 = Axis(fig[2, 1])
-    
-    for var in 1:n_variables
-        for method in 1:n_methods
-            x_pos = var
-            boxplot!(ax2, fill(x_pos, n_samples), 
-                     data_3d_2[:, method, var], 
-                     color=(colors[method], alpha))
-        end
-    end
-    
-    ax2.xticks = (1:n_variables, ["Z$i" for i in 1:n_variables])
-    
-    # Shared legend
-    Legend(fig[3, 1], plot_elements, method_labels, 
-           orientation=:horizontal, 
-           tellwidth=false, 
-           margin=(10, 10, 10, 10))
-    
-    return fig
+    return latex_output
 end
-
-save(
-    "MultEndSimulation_PIPs.pdf",
-    create_3d_boxplots(res[:n50].PIP_M, res[:n500].PIP_M)
-)
+create_comparison_table(res[:n50].PIP_M, res[:n500].PIP_M) |> println
