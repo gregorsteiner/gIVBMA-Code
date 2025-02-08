@@ -2,9 +2,7 @@
 using DataFrames, CSV, InvertedIndices, Statistics, Random
 using CairoMakie
 
-"""
-    Load and prepare dataset.
-"""
+##### Load and prepare dataset #####
 
 df = CSV.read("Carstensen_Gundlach.csv", DataFrame, missingstring="-999.999")
 
@@ -20,9 +18,7 @@ df = df[:, needed_columns]
 # drop all observations with missing values in the variables
 dropmissing!(df)
 
-"""
-    Fit full IVBMA models.
-"""
+##### Fit full gIVBMA models #####
 
 # Run analysis
 using Pkg; Pkg.activate("../../gIVBMA")
@@ -140,9 +136,7 @@ end
 println(create_latex_table(res_bric, res_hg))
 
 
-"""
-    LPS analysis.
-"""
+##### LPS analysis #####
 
 include("../Simulations/competing_methods.jl")
 
@@ -214,3 +208,29 @@ end
 methods = ["gIVBMA (BRIC)", "gIVBMA (hyper-g/n)", "IVBMA (KL)", "BMA (hyper-g/n)", "TSLS"]
 latex_table = create_latex_table(res, methods)
 println(latex_table)
+
+
+##### Down testing procedure using SD-ratios #####
+
+include("savage_dickey_ratio.jl")
+
+# set seed (there is some randomness as we simulate from the implied prior for Σ)
+Random.seed!(42)
+
+# Start by testing each of the endogenous variables against zero endogeneity
+(sd_ratio(res_hg; k = 1), sd_ratio(res_hg; k = 2))
+(sd_ratio(res_bric; k = 1), sd_ratio(res_bric; k = 2)) # same result for the bric model
+
+# fit the model without endogeneity for the first variable
+Random.seed!(42)
+res_hg_1 = givbma(y, X[:, 2], [X[:, 1] Z]; iter = iters, burn = Int(iters/5), dist = ["Gaussian", "BL"], g_prior = "hyper-g/n")
+sd_ratio(res_hg_1; k = 1)
+
+res_bric_1 = givbma(y, X[:, 2], [X[:, 1] Z]; iter = iters, burn = Int(iters/5), dist = ["Gaussian", "BL"], g_prior = "BRIC")
+sd_ratio(res_bric_1; k = 1)
+
+# fit the model with no endogenous variables
+res_hg_2 = bma(y, X, Z; iter = iters, burn = Int(iters/5), g_prior = "hyper-g/n")
+map(mean, rbw_bma(res_hg_2))
+
+
