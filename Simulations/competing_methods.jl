@@ -286,7 +286,8 @@ function ivbma_kl(y, X, Z, W, y_h, X_h, Z_h, W_h; target_M = [1, 0, 0, 0, 1, 0, 
         lps = lps,
         posterior_probability_M = posterior_probability_M,
         M_bar = res[:M_bar][2:end, :]',
-        M_size_bar = M_size_bar
+        M_size_bar = M_size_bar,
+        L = res[:L_bar][2:end]
     )
 end
 
