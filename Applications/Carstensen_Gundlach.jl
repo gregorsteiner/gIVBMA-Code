@@ -216,25 +216,24 @@ println(latex_table)
 
 ##### Down testing procedure using SD-ratios #####
 
-include("savage_dickey_ratio.jl")
 
 # set seed (there is some randomness as we simulate from the implied prior for Σ)
 Random.seed!(42)
 
 # Start by testing each of the endogenous variables against zero endogeneity
-(sd_ratio(res_hg; k = 1), sd_ratio(res_hg; k = 2))
-(sd_ratio(res_bric; k = 1), sd_ratio(res_bric; k = 2)) # same result for the bric model
+println("SD-Ratio for rule (hyper-g/n): " * string(round.(savage_dickey_ratio(res_hg; k = 1), digits = 3)))
+println("SD-Ratio for malfal (hyper-g/n): " * string(round.(savage_dickey_ratio(res_hg; k = 2), digits = 3)))
+println("SD-Ratio for rule (BRIC): " * string(round.(savage_dickey_ratio(res_bric; k = 1), digits = 3)))
+println("SD-Ratio for malfal (BRIC): " * string(round.(savage_dickey_ratio(res_bric; k = 2), digits = 3)))
+
 
 # fit the model without endogeneity for the first variable
 Random.seed!(42)
 res_hg_1 = givbma(y, X[:, 2], [X[:, 1] Z]; iter = iters, burn = Int(iters/5), dist = ["Gaussian", "BL"], g_prior = "hyper-g/n")
-sd_ratio(res_hg_1; k = 1)
+println("SD-Ratio for malfal in the l = 1 model (hyper-g/n): " * string(round.(savage_dickey_ratio(res_hg_1), digits = 3)))
 
 res_bric_1 = givbma(y, X[:, 2], [X[:, 1] Z]; iter = iters, burn = Int(iters/5), dist = ["Gaussian", "BL"], g_prior = "BRIC")
-sd_ratio(res_bric_1; k = 1)
+println("SD-Ratio for malfal in the l = 1 model (BRIC): " * string(round.(savage_dickey_ratio(res_bric_1), digits = 3)))
 
-# fit the model with no endogenous variables
-res_hg_2 = bma(y, X, Z; iter = iters, burn = Int(iters/5), g_prior = "hyper-g/n")
-map(mean, rbw_bma(res_hg_2))
 
 

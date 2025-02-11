@@ -45,8 +45,18 @@ res_bma_2 = bma(y_2, X_2, Z_2; iter = iters, burn = Int(iters/2), g_prior = "hyp
 res_ivbma_2 = ivbma_kl(y_2, X_2, Z_2, y_2, X_2, Z_2)
 
 # compute SD ratios for expersq being endogenous
-println("SD-Ratio for expersq being exogenous (data without parents' education, hyper-g/n and BRIC): " * string(sd_ratio(res_hg_1; k = 2)) * ", " * string(sd_ratio(res_bric_1; k = 2)))
-println("SD-Ratio for expersq being exogenous (data with parents' education, hyper-g/n and BRIC): " * string(sd_ratio(res_hg_2; k = 2)) * ", " * string(sd_ratio(res_bric_2; k = 2)))
+Random.seed!(42)
+println(
+    "SD-Ratio for expersq being exogenous (data without parents' education, hyper-g/n and BRIC): " *
+    string(round(savage_dickey_ratio(res_hg_1; k = 2), digits = 2)) * ", " *
+    string(round(savage_dickey_ratio(res_bric_1; k = 2), digits = 2))
+)
+println(
+    "SD-Ratio for expersq being exogenous (data with parents' education, hyper-g/n and BRIC): " *
+    string(round(savage_dickey_ratio(res_hg_2; k = 2), digits = 2)) * ", " *
+    string(round(savage_dickey_ratio(res_bric_2; k = 2), digits = 2))
+)
+
 
 # Plot the posterior results
 fig = Figure()
