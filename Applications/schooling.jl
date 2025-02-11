@@ -1,11 +1,10 @@
 
 using DataFrames, CSV, Random, Statistics
-using CairoMakie, LaTeXStrings, PrettyTables
+using CairoMakie, LaTeXStrings, PrettyTables, KernelDensity
 using Pkg; Pkg.activate("../../gIVBMA")
 using gIVBMA
 include("../Simulations/bma.jl")
 include("../Simulations/competing_methods.jl")
-include("savage_dickey_ratio.jl")
 
 ##### Load and prepare data #####
 d = CSV.read("card.csv", DataFrame, missingstring = "NA")[:, Not(1:2)]
@@ -37,12 +36,12 @@ iters = 5000
 res_hg_1 = givbma(y_1, X_1, Z_1; iter = iters, burn = Int(iters/2), g_prior = "hyper-g/n")
 res_bric_1 = givbma(y_1, X_1, Z_1; iter = iters, burn = Int(iters/2), g_prior = "BRIC")
 res_bma_1 = bma(y_1, X_1, Z_1; iter = iters, burn = Int(iters/2), g_prior = "hyper-g/n")
-res_ivbma_1 = ivbma_kl(y_1, X_1, Z_1, y_1, X_1, Z_1)
+res_ivbma_1 = ivbma_kl(y_1, X_1, Z_1, y_1, X_1, Z_1; s = 5 * iters)
 
 res_hg_2 = givbma(y_2, X_2, Z_2; iter = iters, burn = Int(iters/2), g_prior = "hyper-g/n")
 res_bric_2 = givbma(y_2, X_2, Z_2; iter = iters, burn = Int(iters/2), g_prior = "BRIC")
 res_bma_2 = bma(y_2, X_2, Z_2; iter = iters, burn = Int(iters/2), g_prior = "hyper-g/n")
-res_ivbma_2 = ivbma_kl(y_2, X_2, Z_2, y_2, X_2, Z_2)
+res_ivbma_2 = ivbma_kl(y_2, X_2, Z_2, y_2, X_2, Z_2; s = 5 * iters)
 
 # compute SD ratios for expersq being endogenous
 Random.seed!(42)
@@ -59,24 +58,33 @@ println(
 
 
 # Plot the posterior results
+cols = Makie.wong_colors()
+
 fig = Figure()
 ax1 = Axis(fig[1, 1], xlabel = L"\tau", ylabel = "(a)")
 lines!(ax1, rbw(res_hg_1)[1], color = cols[1], label = "gIVBMA (hyper-g/n)")
 lines!(ax1, rbw(res_bric_1)[1], color = cols[2], linestyle = :dash, label = "gIVBMA (BRIC)")
 lines!(ax1, rbw_bma(res_bma_1)[1], color = cols[3], linestyle = :dashdot, label = "BMA (hyper-g/n)")
+kde_ivbma_1 = kde(res_ivbma_1.τ_full[:, 1])
+lines!(ax1, kde_ivbma_1.x, kde_ivbma_1.density, color = cols[4], linestyle = :dashdotdot, label = "IVBMA")
 
 ax2 = Axis(fig[1, 2], xlabel = L"\sigma_{yx}")
 density!(ax2, map(x -> x[1, 2], res_hg_1.Σ), color = :transparent, strokecolor = cols[1], strokewidth = 1.5)
 density!(ax2, map(x -> x[1, 2], res_bric_1.Σ), color = :transparent, linestyle = :dash, strokecolor = cols[2], strokewidth = 1.5)
+density!(ax2, res_ivbma_1.Σ[1, 2, :], color = :transparent, linestyle = :dash, strokecolor = cols[4], strokewidth = 1.5)
 
 ax3 = Axis(fig[2, 1], xlabel = L"\tau",  ylabel = "(b)")
 lines!(ax3, rbw(res_hg_2)[1], color = cols[1], label = "gIVBMA (hyper-g/n)")
 lines!(ax3, rbw(res_bric_2)[1], color = cols[2], linestyle = :dash, label = "gIVBMA (BRIC)")
 lines!(ax3, rbw_bma(res_bma_2)[1], color = cols[3], linestyle = :dashdot, label = "BMA (hyper-g/n)")
+kde_ivbma_2 = kde(res_ivbma_2.τ_full[:, 1])
+lines!(ax3, kde_ivbma_2.x, kde_ivbma_2.density, color = cols[4], linestyle = :dashdotdot, label = "IVBMA")
+xlims!(ax3, (-0.05, 0.15))
 
 ax4 = Axis(fig[2, 2], xlabel = L"\sigma_{yx}")
 density!(ax4, map(x -> x[1, 2], res_hg_2.Σ), color = :transparent, strokecolor = cols[1], strokewidth = 1.5)
 density!(ax4, map(x -> x[1, 2], res_bric_2.Σ), color = :transparent, linestyle = :dash, strokecolor = cols[2], strokewidth = 1.5)
+density!(ax4, res_ivbma_2.Σ[1, 2, :], color = :transparent, linestyle = :dash, strokecolor = cols[4], strokewidth = 1.5)
 
 Legend(fig[3, 1:2], ax1, orientation = :horizontal)
 save("Posterior_Schooling.pdf", fig)
@@ -87,7 +95,7 @@ save("Posterior_Schooling.pdf", fig)
 function create_pip_table(hg, bric, ivbma, bma)
     tab_hg = [mean(hg.L, dims = 1)' mean(hg.M, dims = 1)']
     tab_bric = [mean(bric.L, dims = 1)' mean(bric.M, dims = 1)']
-    tab_ivbma = [ivbma.L[Not(1:2)] ivbma.M_bar[1, :]]
+    tab_ivbma = [ivbma.L[Not(1:3)] ivbma.M_bar[1, :]]
     tab_bma = mean(bma.L, dims = 1)'
     return [tab_hg tab_bric tab_ivbma tab_bma]
 end
