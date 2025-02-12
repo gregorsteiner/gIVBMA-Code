@@ -231,10 +231,10 @@ end
 """
     Implement the IVBMA procedure of Karl & Lenkoski based on their R package.
 """
-function ivbma_kl(y, X, Z, W, y_h, X_h, Z_h, W_h; s = 2000, target_M = [1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0])
+function ivbma_kl(y, X, Z, W, y_h, X_h, Z_h, W_h; s = 2000, b = 1000, target_M = [1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0])
     n, l = (size(X, 1), size(X, 2))
 
-    @rput y X Z W s
+    @rput y X Z W s b
     R"""
     source("ivbma.R")
     max_attempts <- 5
@@ -242,7 +242,7 @@ function ivbma_kl(y, X, Z, W, y_h, X_h, Z_h, W_h; s = 2000, target_M = [1, 0, 0,
     # It sometimes happens that the ivbma code fails because of a singular matrix (this is usually within the Bartlett decomposition). We just retry it a few times (this rarely happens so should not affect the results too much)
     while(attempt <= max_attempts) {
         tryCatch({
-            res <- ivbma(y, X, Z, cbind(rep(1, nrow(W)), W), s = s, b = s/2, print.every = 1e5)
+            res <- ivbma(y, X, Z, cbind(rep(1, nrow(W)), W), s = s, b = b, odens = s-b, print.every = 1e5)
             break  # If successful, exit the while loop
         }, error = function(e) {
             if(attempt == max_attempts) {
@@ -294,5 +294,5 @@ function ivbma_kl(y, X, Z, W, y_h, X_h, Z_h, W_h; s = 2000, target_M = [1, 0, 0,
 end
 
 # alternative method for invalid instruments
-ivbma_kl(y, X, Z, y_h, X_h, Z_h; s = 2000) = ivbma_kl(y, X, Matrix{Float64}(undef, length(y), 0), Z, y_h, X_h, Matrix{Float64}(undef, length(y_h), 0), Z_h; s = s)
+ivbma_kl(y, X, Z, y_h, X_h, Z_h; s = 2000, b = 1000) = ivbma_kl(y, X, Matrix{Float64}(undef, length(y), 0), Z, y_h, X_h, Matrix{Float64}(undef, length(y_h), 0), Z_h; s = s, b = b)
 

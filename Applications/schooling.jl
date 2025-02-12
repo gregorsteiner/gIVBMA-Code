@@ -32,16 +32,16 @@ Z_2 = Matrix(d_par_educ[:, ["age", "agesq", "nearc2", "nearc4", "momdad14", "sin
 
 ##### Run analysis #####
 Random.seed!(42)
-iters = 5000
-res_hg_1 = givbma(y_1, X_1, Z_1; iter = iters, burn = Int(iters/2), g_prior = "hyper-g/n")
-res_bric_1 = givbma(y_1, X_1, Z_1; iter = iters, burn = Int(iters/2), g_prior = "BRIC")
-res_bma_1 = bma(y_1, X_1, Z_1; iter = iters, burn = Int(iters/2), g_prior = "hyper-g/n")
-res_ivbma_1 = ivbma_kl(y_1, X_1, Z_1, y_1, X_1, Z_1; s = 5 * iters)
+iters = 10000
+res_hg_1 = givbma(y_1, X_1, Z_1; iter = iters, burn = Int(iters/5), g_prior = "hyper-g/n")
+res_bric_1 = givbma(y_1, X_1, Z_1; iter = iters, burn = Int(iters/5), g_prior = "BRIC")
+res_bma_1 = bma(y_1, X_1, Z_1; iter = iters, burn = Int(iters/5), g_prior = "hyper-g/n")
+res_ivbma_1 = ivbma_kl(y_1, X_1, Z_1, y_1, X_1, Z_1; s = iters, b = Int(iters/5))
 
-res_hg_2 = givbma(y_2, X_2, Z_2; iter = iters, burn = Int(iters/2), g_prior = "hyper-g/n")
-res_bric_2 = givbma(y_2, X_2, Z_2; iter = iters, burn = Int(iters/2), g_prior = "BRIC")
-res_bma_2 = bma(y_2, X_2, Z_2; iter = iters, burn = Int(iters/2), g_prior = "hyper-g/n")
-res_ivbma_2 = ivbma_kl(y_2, X_2, Z_2, y_2, X_2, Z_2; s = 5 * iters)
+res_hg_2 = givbma(y_2, X_2, Z_2; iter = iters, burn = Int(iters/5), g_prior = "hyper-g/n")
+res_bric_2 = givbma(y_2, X_2, Z_2; iter = iters, burn = Int(iters/5), g_prior = "BRIC")
+res_bma_2 = bma(y_2, X_2, Z_2; iter = iters, burn = Int(iters/5), g_prior = "hyper-g/n")
+res_ivbma_2 = ivbma_kl(y_2, X_2, Z_2, y_2, X_2, Z_2; s = iters, b = Int(iters/5))
 
 # compute SD ratios for expersq being endogenous
 Random.seed!(42)
@@ -89,7 +89,22 @@ density!(ax4, res_ivbma_2.Σ[1, 2, :], color = :transparent, linestyle = :dash, 
 Legend(fig[3, 1:2], ax1, orientation = :horizontal)
 save("Posterior_Schooling.pdf", fig)
 
+# traceplots
+tp = Figure()
+ax1 = Axis(tp[1, 1], xlabel = "Iteration", ylabel = L"\tau")
+lines!(ax1, res_hg_1.τ[:, 1], color = cols[1], label = "gIVBMA (hyper-g/n)")
+lines!(ax1, res_bric_1.τ[:, 1], color = cols[2], linestyle = :dash, label = "gIVBMA (BRIC)")
+lines!(ax1, res_bma_1.τ[:, 1], color = cols[3], linestyle = :dashdot, label = "BMA (hyper-g/n)")
+lines!(ax1, res_ivbma_1.τ_full[:, 1], color = cols[4], linestyle = :dashdotdot, label = "IVBMA")
 
+ax2 = Axis(tp[2, 1], xlabel = "Iteration", ylabel = L"\tau")
+lines!(ax2, res_hg_2.τ[:, 1], color = cols[1], label = "gIVBMA (hyper-g/n)")
+lines!(ax2, res_bric_2.τ[:, 1], color = cols[2], linestyle = :dash, label = "gIVBMA (BRIC)")
+lines!(ax2, res_bma_2.τ[:, 1], color = cols[3], linestyle = :dashdot, label = "BMA (hyper-g/n)")
+lines!(ax2, res_ivbma_2.τ_full[:, 1], color = cols[4], linestyle = :dashdotdot, label = "IVBMA")
+
+Legend(tp[3, 1], ax1, orientation = :horizontal)
+save("Traceplots_Schooling.pdf", tp)
 
 # Create PIP table
 function create_pip_table(hg, bric, ivbma, bma)
