@@ -214,26 +214,35 @@ latex_table = create_latex_table(res, methods)
 println(latex_table)
 
 
-##### Down testing procedure using SD-ratios #####
+##### Endogeneity testing procedure #####
 
 
-# set seed (there is some randomness as we simulate from the implied prior for Σ)
+# fit the model with rule being exogenous
 Random.seed!(42)
+res_hg_1_rule = givbma(y, X[:, 2], [X[:, 1] Z]; iter = iters, burn = Int(iters/5), dist = ["Gaussian", "BL"], g_prior = "hyper-g/n")
+res_bric_1_rule = givbma(y, X[:, 2], [X[:, 1] Z]; iter = iters, burn = Int(iters/5), dist = ["Gaussian", "BL"], g_prior = "BRIC")
 
-# Start by testing each of the endogenous variables against zero endogeneity
-println("SD-Ratio for rule (hyper-g/n): " * string(round.(savage_dickey_ratio(res_hg; k = 1), digits = 3)))
-println("SD-Ratio for malfal (hyper-g/n): " * string(round.(savage_dickey_ratio(res_hg; k = 2), digits = 3)))
-println("SD-Ratio for rule (BRIC): " * string(round.(savage_dickey_ratio(res_bric; k = 1), digits = 3)))
-println("SD-Ratio for malfal (BRIC): " * string(round.(savage_dickey_ratio(res_bric; k = 2), digits = 3)))
+println(
+    "Bayes-factor for exogeneity of rule (hyper-g/n and BRIC respectively): " *
+    string(round.((mean(exp.(res_hg_1_rule.ML)) / mean(exp.(res_hg.ML)), mean(exp.(res_bric_1_rule.ML)) / mean(exp.(res_bric.ML))), digits = 3))
+)
 
-
-# fit the model without endogeneity for the first variable
+# fit the model with malfal being exogenous
 Random.seed!(42)
-res_hg_1 = givbma(y, X[:, 2], [X[:, 1] Z]; iter = iters, burn = Int(iters/5), dist = ["Gaussian", "BL"], g_prior = "hyper-g/n")
-println("SD-Ratio for malfal in the l = 1 model (hyper-g/n): " * string(round.(savage_dickey_ratio(res_hg_1), digits = 3)))
+res_hg_1_malfal = givbma(y, X[:, 1], [X[:, 2] Z]; iter = iters, burn = Int(iters/5), dist = ["Gaussian", "Gaussian"], g_prior = "hyper-g/n")
+res_bric_1_malfal = givbma(y, X[:, 1], [X[:, 2] Z]; iter = iters, burn = Int(iters/5), dist = ["Gaussian", "Gaussian"], g_prior = "BRIC")
+println(
+    "Bayes-factor for exogeneity of malfal (hyper-g/n and BRIC respectively): " *
+    string(round.((mean(exp.(res_hg_1_malfal.ML)) / mean(exp.(res_hg.ML)), mean(exp.(res_bric_1_malfal.ML)) / mean(exp.(res_bric.ML))), digits = 3))
+)
 
-res_bric_1 = givbma(y, X[:, 2], [X[:, 1] Z]; iter = iters, burn = Int(iters/5), dist = ["Gaussian", "BL"], g_prior = "BRIC")
-println("SD-Ratio for malfal in the l = 1 model (BRIC): " * string(round.(savage_dickey_ratio(res_bric_1), digits = 3)))
 
+# Now also test the model with only rule being exogenous against the model with no endogenous variables
+Random.seed!(42)
+res_hg_0 = givbma(y, X[:, Not(1:2)], [X Z]; iter = iters, burn = Int(iters/5), g_prior = "hyper-g/n")
+res_bric_0 = givbma(y, X[:, Not(1:2)], [X Z]; iter = iters, burn = Int(iters/5), g_prior = "BRIC")
 
-
+println(
+    "Bayes-factor for exogeneity of rule (hyper-g/n and BRIC respectively): " *
+    string(round.((mean(exp.(res_hg_0.ML)) / mean(exp.(res_hg_1_malfal.ML)), mean(exp.(res_bric_0.ML)) / mean(exp.(res_bric_1_malfal.ML))), digits = 3))
+)
