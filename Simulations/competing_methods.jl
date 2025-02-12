@@ -275,7 +275,11 @@ function ivbma_kl(y, X, Z, W, y_h, X_h, Z_h, W_h; s = 2000, b = 1000, target_M =
 
     # compute posterior probability of true treatment model (this only matters for the simulation with multiple endogenous variables; we do not use this in the other scenarios)
     M = res[:M][2:end, :, :]
-    posterior_probability_M = [mean(mapslices(slice -> slice[:, 1] == target_M, M, dims=[1,2])), mean(mapslices(slice -> slice[:, 2] == target_M, M, dims=[1,2]))]
+    if l > 1 # the line below only makes sens if l is at least 2
+        posterior_probability_M = [mean(mapslices(slice -> slice[:, 1] == target_M, M, dims=[1,2])), mean(mapslices(slice -> slice[:, 2] == target_M, M, dims=[1,2]))]
+    else # else this doesn't matter and we'll just assign (0, 0), but won't use this
+        posterior_probability_M = [0, 0]
+    end
 
     # compute mean model size (if l>1 we average the model sizes for the different endogenous variables)
     M_size_bar = mean(sum(M, dims = 1), dims = 3)[1, :, 1]

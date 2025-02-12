@@ -1,6 +1,6 @@
 
 using DataFrames, CSV, Random, Statistics
-using CairoMakie, LaTeXStrings, PrettyTables, KernelDensity
+using CairoMakie, LaTeXStrings, KernelDensity
 using Pkg; Pkg.activate("../../gIVBMA")
 using gIVBMA
 include("../Simulations/bma.jl")
@@ -43,19 +43,6 @@ res_bric_2 = givbma(y_2, X_2, Z_2; iter = iters, burn = Int(iters/5), g_prior = 
 res_bma_2 = bma(y_2, X_2, Z_2; iter = iters, burn = Int(iters/5), g_prior = "hyper-g/n")
 res_ivbma_2 = ivbma_kl(y_2, X_2, Z_2, y_2, X_2, Z_2; s = iters, b = Int(iters/5))
 
-# compute SD ratios for expersq being endogenous
-Random.seed!(42)
-println(
-    "SD-Ratio for expersq being exogenous (data without parents' education, hyper-g/n and BRIC): " *
-    string(round(savage_dickey_ratio(res_hg_1; k = 2), digits = 2)) * ", " *
-    string(round(savage_dickey_ratio(res_bric_1; k = 2), digits = 2))
-)
-println(
-    "SD-Ratio for expersq being exogenous (data with parents' education, hyper-g/n and BRIC): " *
-    string(round(savage_dickey_ratio(res_hg_2; k = 2), digits = 2)) * ", " *
-    string(round(savage_dickey_ratio(res_bric_2; k = 2), digits = 2))
-)
-
 
 # Plot the posterior results
 cols = Makie.wong_colors()
@@ -71,7 +58,7 @@ lines!(ax1, kde_ivbma_1.x, kde_ivbma_1.density, color = cols[4], linestyle = :da
 ax2 = Axis(fig[1, 2], xlabel = L"\sigma_{yx}")
 density!(ax2, map(x -> x[1, 2], res_hg_1.Σ), color = :transparent, strokecolor = cols[1], strokewidth = 1.5)
 density!(ax2, map(x -> x[1, 2], res_bric_1.Σ), color = :transparent, linestyle = :dash, strokecolor = cols[2], strokewidth = 1.5)
-density!(ax2, res_ivbma_1.Σ[1, 2, :], color = :transparent, linestyle = :dash, strokecolor = cols[4], strokewidth = 1.5)
+density!(ax2, res_ivbma_1.Σ[1, 2, :], color = :transparent, linestyle = :dashdotdot, strokecolor = cols[4], strokewidth = 1.5)
 
 ax3 = Axis(fig[2, 1], xlabel = L"\tau",  ylabel = "(b)")
 lines!(ax3, rbw(res_hg_2)[1], color = cols[1], label = "gIVBMA (hyper-g/n)")
@@ -84,7 +71,7 @@ xlims!(ax3, (-0.05, 0.15))
 ax4 = Axis(fig[2, 2], xlabel = L"\sigma_{yx}")
 density!(ax4, map(x -> x[1, 2], res_hg_2.Σ), color = :transparent, strokecolor = cols[1], strokewidth = 1.5)
 density!(ax4, map(x -> x[1, 2], res_bric_2.Σ), color = :transparent, linestyle = :dash, strokecolor = cols[2], strokewidth = 1.5)
-density!(ax4, res_ivbma_2.Σ[1, 2, :], color = :transparent, linestyle = :dash, strokecolor = cols[4], strokewidth = 1.5)
+density!(ax4, res_ivbma_2.Σ[1, 2, :], color = :transparent, linestyle = :dashdotdot, strokecolor = cols[4], strokewidth = 1.5)
 
 Legend(fig[3, 1:2], ax1, orientation = :horizontal)
 save("Posterior_Schooling.pdf", fig)
