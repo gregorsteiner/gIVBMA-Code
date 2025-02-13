@@ -288,10 +288,12 @@ function ivbma_kl(y, X, Z, W, y_h, X_h, Z_h, W_h; s = 2000, b = 1000, target_M =
         τ = l == 1 ? mean(τ) : mean(τ, dims = 1)[1, :],
         CI = l == 1 ? quantile(τ, [0.025, 0.975]) : [quantile(τ[:, i], [0.025, 0.975]) for i in axes(τ, 2)],
         lps = lps,
+        L = res[:L],
+        M = res[:M],
         posterior_probability_M = posterior_probability_M,
         M_bar = res[:M_bar][2:end, :]',
         M_size_bar = M_size_bar,
-        L = res[:L_bar],
+        L_bar = res[:L_bar],
         τ_full = res[:rho][:, 1:l],
         Σ = Σ
     )

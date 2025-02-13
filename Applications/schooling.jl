@@ -60,19 +60,19 @@ cols = Makie.wong_colors()
 fig = Figure()
 ax1 = Axis(fig[1, 1], xlabel = L"\tau", ylabel = "(a)")
 lines!(ax1, rbw(res_hg_1)[1], color = cols[1], label = "gIVBMA (hyper-g/n)")
-lines!(ax1, rbw(res_bric_1)[1], color = cols[2], linestyle = :dash, label = "gIVBMA (BRIC)")
+lines!(ax1, rbw(res_bric_1)[1], color = cols[2], linestyle = :dot, label = "gIVBMA (BRIC)")
 lines!(ax1, rbw_bma(res_bma_1)[1], color = cols[3], linestyle = :dashdot, label = "BMA (hyper-g/n)")
 kde_ivbma_1 = kde(res_ivbma_1.τ_full[:, 1])
 lines!(ax1, kde_ivbma_1.x, kde_ivbma_1.density, color = cols[4], linestyle = :dashdotdot, label = "IVBMA")
 
 ax2 = Axis(fig[1, 2], xlabel = L"\sigma_{yx}")
 density!(ax2, map(x -> x[1, 2], res_hg_1.Σ), color = :transparent, strokecolor = cols[1], strokewidth = 1.5)
-density!(ax2, map(x -> x[1, 2], res_bric_1.Σ), color = :transparent, linestyle = :dash, strokecolor = cols[2], strokewidth = 1.5)
+density!(ax2, map(x -> x[1, 2], res_bric_1.Σ), color = :transparent, linestyle = :dot, strokecolor = cols[2], strokewidth = 1.5)
 density!(ax2, res_ivbma_1.Σ[1, 2, :], color = :transparent, linestyle = :dashdotdot, strokecolor = cols[4], strokewidth = 1.5)
 
 ax3 = Axis(fig[2, 1], xlabel = L"\tau",  ylabel = "(b)")
 lines!(ax3, rbw(res_hg_2)[1], color = cols[1], label = "gIVBMA (hyper-g/n)")
-lines!(ax3, rbw(res_bric_2)[1], color = cols[2], linestyle = :dash, label = "gIVBMA (BRIC)")
+lines!(ax3, rbw(res_bric_2)[1], color = cols[2], linestyle = :dot, label = "gIVBMA (BRIC)")
 lines!(ax3, rbw_bma(res_bma_2)[1], color = cols[3], linestyle = :dashdot, label = "BMA (hyper-g/n)")
 kde_ivbma_2 = kde(res_ivbma_2.τ_full[:, 1])
 lines!(ax3, kde_ivbma_2.x, kde_ivbma_2.density, color = cols[4], linestyle = :dashdotdot, label = "IVBMA")
@@ -80,7 +80,7 @@ lines!(ax3, kde_ivbma_2.x, kde_ivbma_2.density, color = cols[4], linestyle = :da
 
 ax4 = Axis(fig[2, 2], xlabel = L"\sigma_{yx}")
 density!(ax4, map(x -> x[1, 2], res_hg_2.Σ), color = :transparent, strokecolor = cols[1], strokewidth = 1.5)
-density!(ax4, map(x -> x[1, 2], res_bric_2.Σ), color = :transparent, linestyle = :dash, strokecolor = cols[2], strokewidth = 1.5)
+density!(ax4, map(x -> x[1, 2], res_bric_2.Σ), color = :transparent, linestyle = :dot, strokecolor = cols[2], strokewidth = 1.5)
 density!(ax4, res_ivbma_2.Σ[1, 2, :], color = :transparent, linestyle = :dashdotdot, strokecolor = cols[4], strokewidth = 1.5)
 
 Legend(fig[3, 1:2], ax1, orientation = :horizontal)
@@ -90,13 +90,13 @@ save("Posterior_Schooling.pdf", fig)
 tp = Figure()
 ax1 = Axis(tp[1, 1], xlabel = "Iteration", ylabel = L"\tau")
 lines!(ax1, res_hg_1.τ[:, 1], color = cols[1], label = "gIVBMA (hyper-g/n)", alpha = 0.8)
-lines!(ax1, res_bric_1.τ[:, 1], color = cols[2], linestyle = :dash, label = "gIVBMA (BRIC)", alpha = 0.8)
+lines!(ax1, res_bric_1.τ[:, 1], color = cols[2], linestyle = :dot, label = "gIVBMA (BRIC)", alpha = 0.8)
 lines!(ax1, res_bma_1.τ[:, 1], color = cols[3], linestyle = :dashdot, label = "BMA (hyper-g/n)", alpha = 0.8)
 lines!(ax1, res_ivbma_1.τ_full[:, 1], color = cols[4], linestyle = :dashdotdot, label = "IVBMA", alpha = 0.8)
 
 ax2 = Axis(tp[2, 1], xlabel = "Iteration", ylabel = L"\tau")
 lines!(ax2, res_hg_2.τ[:, 1], color = cols[1], label = "gIVBMA (hyper-g/n)", alpha = 0.8)
-lines!(ax2, res_bric_2.τ[:, 1], color = cols[2], linestyle = :dash, label = "gIVBMA (BRIC)", alpha = 0.8)
+lines!(ax2, res_bric_2.τ[:, 1], color = cols[2], linestyle = :dot, label = "gIVBMA (BRIC)", alpha = 0.8)
 lines!(ax2, res_bma_2.τ[:, 1], color = cols[3], linestyle = :dashdot, label = "BMA (hyper-g/n)", alpha = 0.8)
 lines!(ax2, res_ivbma_2.τ_full[:, 1], color = cols[4], linestyle = :dashdotdot, label = "IVBMA", alpha = 0.8)
 
@@ -132,13 +132,13 @@ end
 model_count_hg = find_frequent_models(res_hg_2.L, res_hg_2.M, 5)
 model_count_bric = find_frequent_models(res_bric_2.L, res_bric_2.M, 5)
 
-
+res_ivbma_2.M
 
 # Create PIP table
 function create_pip_table(hg, bric, ivbma, bma)
     tab_hg = [mean(hg.L, dims = 1)' mean(hg.M, dims = 1)']
     tab_bric = [mean(bric.L, dims = 1)' mean(bric.M, dims = 1)']
-    tab_ivbma = [ivbma.L[Not(1:3)] ivbma.M_bar[1, :]]
+    tab_ivbma = [ivbma.L_bar[Not(1:3)] ivbma.M_bar[1, :]]
     tab_bma = mean(bma.L, dims = 1)'
     return [tab_hg tab_bric tab_ivbma tab_bma]
 end
