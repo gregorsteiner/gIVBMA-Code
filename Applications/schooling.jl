@@ -1,6 +1,6 @@
 
 using DataFrames, CSV, Random, Statistics
-using CairoMakie, LaTeXStrings, KernelDensity
+using CairoMakie, LaTeXStrings, KernelDensity, JLD2
 using Pkg; Pkg.activate("../../gIVBMA")
 using gIVBMA
 include("../Simulations/bma.jl")
@@ -30,19 +30,29 @@ Z_2 = Matrix(d_par_educ[:, ["age", "agesq", "nearc2", "nearc4", "momdad14", "sin
                             "reg662", "reg663", "reg664", "reg665", "reg666", "reg667", "reg668", "reg669", "fatheduc", "motheduc"]])
 
 
-##### Run analysis #####
+##### Run analysis (fitting the models takes >10hours) #####
 Random.seed!(42)
-iters = 10000
-res_hg_1 = givbma(y_1, X_1, Z_1; iter = iters, burn = Int(iters/5), g_prior = "hyper-g/n")
-res_bric_1 = givbma(y_1, X_1, Z_1; iter = iters, burn = Int(iters/5), g_prior = "BRIC")
-res_bma_1 = bma(y_1, X_1, Z_1; iter = iters, burn = Int(iters/5), g_prior = "hyper-g/n")
-res_ivbma_1 = ivbma_kl(y_1, X_1, Z_1, y_1, X_1, Z_1; s = iters, b = Int(iters/5))
+iters = 30000
+res_hg_1 = givbma(y_1, X_1, Z_1; iter = iters, burn = Int(iters/10), g_prior = "hyper-g/n")
+res_bric_1 = givbma(y_1, X_1, Z_1; iter = iters, burn = Int(iters/10), g_prior = "BRIC")
+res_bma_1 = bma(y_1, X_1, Z_1; iter = iters, burn = Int(iters/10), g_prior = "hyper-g/n")
+res_ivbma_1 = ivbma_kl(y_1, X_1, Z_1, y_1, X_1, Z_1; s = iters, b = Int(iters/10))
 
-res_hg_2 = givbma(y_2, X_2, Z_2; iter = iters, burn = Int(iters/5), g_prior = "hyper-g/n")
-res_bric_2 = givbma(y_2, X_2, Z_2; iter = iters, burn = Int(iters/5), g_prior = "BRIC")
-res_bma_2 = bma(y_2, X_2, Z_2; iter = iters, burn = Int(iters/5), g_prior = "hyper-g/n")
-res_ivbma_2 = ivbma_kl(y_2, X_2, Z_2, y_2, X_2, Z_2; s = iters, b = Int(iters/5))
+res_hg_2 = givbma(y_2, X_2, Z_2; iter = iters, burn = Int(iters/10), g_prior = "hyper-g/n")
+res_bric_2 = givbma(y_2, X_2, Z_2; iter = iters, burn = Int(iters/10), g_prior = "BRIC")
+res_bma_2 = bma(y_2, X_2, Z_2; iter = iters, burn = Int(iters/10), g_prior = "hyper-g/n")
+res_ivbma_2 = ivbma_kl(y_2, X_2, Z_2, y_2, X_2, Z_2; s = iters, b = Int(iters/10))
 
+# save posteriors for later use
+jldsave("Posterior_Samples_Schooling.jld2"; res_hg_1, res_bric_1, res_bma_1, res_ivbma_1, res_hg_2, res_bric_2, res_bma_2, res_ivbma_2)
+
+
+##### Create plots and tables of the results #####
+
+# Load again
+res = load("Posterior_Samples_Schooling.jld2")
+res_hg_1, res_bric_1, res_bma_1, res_ivbma_1 = (res[:"res_hg_1"], res[:"res_bric_1"], res[:"res_bma_1"], res[:"res_ivbma_1"])
+res_hg_2, res_bric_2, res_bma_2, res_ivbma_2 = (res[:"res_hg_2"], res[:"res_bric_2"], res[:"res_bma_2"], res[:"res_ivbma_2"])
 
 # Plot the posterior results
 cols = Makie.wong_colors()
@@ -66,7 +76,7 @@ lines!(ax3, rbw(res_bric_2)[1], color = cols[2], linestyle = :dash, label = "gIV
 lines!(ax3, rbw_bma(res_bma_2)[1], color = cols[3], linestyle = :dashdot, label = "BMA (hyper-g/n)")
 kde_ivbma_2 = kde(res_ivbma_2.τ_full[:, 1])
 lines!(ax3, kde_ivbma_2.x, kde_ivbma_2.density, color = cols[4], linestyle = :dashdotdot, label = "IVBMA")
-xlims!(ax3, (-0.05, 0.15))
+#xlims!(ax3, (-0.05, 0.15))
 
 ax4 = Axis(fig[2, 2], xlabel = L"\sigma_{yx}")
 density!(ax4, map(x -> x[1, 2], res_hg_2.Σ), color = :transparent, strokecolor = cols[1], strokewidth = 1.5)
@@ -92,6 +102,37 @@ lines!(ax2, res_ivbma_2.τ_full[:, 1], color = cols[4], linestyle = :dashdotdot,
 
 Legend(tp[3, 1], ax1, orientation = :horizontal)
 save("Traceplots_Schooling.pdf", tp)
+
+
+# check for high probability models
+function find_frequent_models(L, M, k)
+    # Create array of tuples containing row combinations
+    n_rows = size(L, 1)
+    models = [(L[i,:], M[i,:]) for i in 1:n_rows]
+    
+    # Count frequency of each unique model
+    model_counts = Dict{Tuple{Vector{Int}, Vector{Int}}, Int}()
+    for model in models
+        model_counts[model] = get(model_counts, model, 0) + 1
+    end
+    
+    # Sort models by frequency (descending) and take top k
+    sorted_models = sort(collect(model_counts), by=x->x[2], rev=true)[1:min(k, length(model_counts))]
+    
+    # Calculate probabilities
+    total_models = n_rows
+    results = [(model=m[1], 
+               count=m[2], 
+               probability=m[2]/total_models) 
+              for m in sorted_models]
+    
+    return results
+end
+
+model_count_hg = find_frequent_models(res_hg_2.L, res_hg_2.M, 5)
+model_count_bric = find_frequent_models(res_bric_2.L, res_bric_2.M, 5)
+
+
 
 # Create PIP table
 function create_pip_table(hg, bric, ivbma, bma)
