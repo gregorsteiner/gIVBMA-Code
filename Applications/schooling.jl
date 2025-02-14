@@ -1,5 +1,5 @@
 
-using DataFrames, CSV, Random, Statistics
+using DataFrames, CSV, Random, Statistics, LogExpFunctions
 using CairoMakie, LaTeXStrings, KernelDensity, JLD2
 using Pkg; Pkg.activate("../../gIVBMA")
 using gIVBMA
@@ -19,25 +19,26 @@ dropmissing!(d_no_par_educ)
 
 # Data without parents' education
 y_1 = Vector(d_no_par_educ.lwage)
-X_1 = Matrix(d_no_par_educ[:, ["educ", "expersq"]])
+X_1 = Matrix(d_no_par_educ[:, ["educ"]])
 Z_1 = Matrix(d_no_par_educ[:, ["age", "agesq", "nearc2", "nearc4", "momdad14", "sinmom14", "step14", "black", "south", "smsa", "married",
                                "reg662", "reg663", "reg664", "reg665", "reg666", "reg667", "reg668", "reg669"]])
 
 # Data with parents' education
 y_2 = Vector(d_par_educ.lwage)
-X_2 = Matrix(d_par_educ[:, ["educ", "expersq"]])
+X_2 = Matrix(d_par_educ[:, ["educ"]])
 Z_2 = Matrix(d_par_educ[:, ["age", "agesq", "nearc2", "nearc4", "momdad14", "sinmom14", "step14", "black", "south", "smsa", "married",
                             "reg662", "reg663", "reg664", "reg665", "reg666", "reg667", "reg668", "reg669", "fatheduc", "motheduc"]])
 
 
 ##### Run analysis (fitting the models takes >10hours) #####
 Random.seed!(42)
-iters = 30000
+iters = 50000
 res_hg_1 = givbma(y_1, X_1, Z_1; iter = iters, burn = Int(iters/10), g_prior = "hyper-g/n")
 res_bric_1 = givbma(y_1, X_1, Z_1; iter = iters, burn = Int(iters/10), g_prior = "BRIC")
 res_bma_1 = bma(y_1, X_1, Z_1; iter = iters, burn = Int(iters/10), g_prior = "hyper-g/n")
 res_ivbma_1 = ivbma_kl(y_1, X_1, Z_1, y_1, X_1, Z_1; s = iters, b = Int(iters/10))
 
+Random.seed!(42)
 res_hg_2 = givbma(y_2, X_2, Z_2; iter = iters, burn = Int(iters/10), g_prior = "hyper-g/n")
 res_bric_2 = givbma(y_2, X_2, Z_2; iter = iters, burn = Int(iters/10), g_prior = "BRIC")
 res_bma_2 = bma(y_2, X_2, Z_2; iter = iters, burn = Int(iters/10), g_prior = "hyper-g/n")
@@ -53,6 +54,12 @@ jldsave("Posterior_Samples_Schooling.jld2"; res_hg_1, res_bric_1, res_bma_1, res
 res = load("Posterior_Samples_Schooling.jld2")
 res_hg_1, res_bric_1, res_bma_1, res_ivbma_1 = (res[:"res_hg_1"], res[:"res_bric_1"], res[:"res_bma_1"], res[:"res_ivbma_1"])
 res_hg_2, res_bric_2, res_bma_2, res_ivbma_2 = (res[:"res_hg_2"], res[:"res_bric_2"], res[:"res_bma_2"], res[:"res_ivbma_2"])
+
+
+# compute Bayesfactors
+exp(logsumexp(res_hg_1.ML) - logsumexp(res_hg_2.ML))
+exp(logsumexp(res_bric_1.ML) - logsumexp(res_bric_2.ML))
+
 
 # Plot the posterior results
 cols = Makie.wong_colors()
@@ -105,40 +112,121 @@ save("Traceplots_Schooling.pdf", tp)
 
 
 # check for high probability models
-function find_frequent_models(L, M, k)
-    # Create array of tuples containing row combinations
-    n_rows = size(L, 1)
-    models = [(L[i,:], M[i,:]) for i in 1:n_rows]
-    
-    # Count frequency of each unique model
-    model_counts = Dict{Tuple{Vector{Int}, Vector{Int}}, Int}()
-    for model in models
-        model_counts[model] = get(model_counts, model, 0) + 1
-    end
-    
-    # Sort models by frequency (descending) and take top k
-    sorted_models = sort(collect(model_counts), by=x->x[2], rev=true)[1:min(k, length(model_counts))]
-    
-    # Calculate probabilities
-    total_models = n_rows
-    results = [(model=m[1], 
-               count=m[2], 
-               probability=m[2]/total_models) 
-              for m in sorted_models]
-    
-    return results
+function find_frequent_models(res, k)
+   # Create array of tuples containing row combinations
+   n_rows = size(res.L, 1)
+   models = [(res.L[i,:], res.M[i,:]) for i in 1:n_rows]
+   
+   # Count frequency of each unique model
+   model_counts = Dict{Tuple{Vector{Int}, Vector{Int}}, Int}()
+   for model in models
+       model_counts[model] = get(model_counts, model, 0) + 1
+   end
+   
+   # Sort models by frequency (descending) and take top k
+   sorted_models = sort(collect(model_counts), by=x->x[2], rev=true)[1:min(k, length(model_counts))]
+   
+   # Calculate probabilities and format output
+   total_models = n_rows
+   results = []
+   
+   for (model, count) in sorted_models
+       # Convert L and M rows to separate strings
+       L_row, M_row = model
+       L_string = join(L_row, "")
+       M_string = join(M_row, "")
+       
+       # Calculate probability and round to 3 digits
+       probability = round(count/total_models, digits=3)
+       
+       push!(results, (L=L_string, M=M_string, probability=probability))
+   end
+   
+   return results
 end
 
-model_count_hg = find_frequent_models(res_hg_2.L, res_hg_2.M, 5)
-model_count_bric = find_frequent_models(res_bric_2.L, res_bric_2.M, 5)
 
-res_ivbma_2.M
+function generate_latex_table(results_excl_edu, results_incl_edu)
+    
+    # Method names
+    method_names = ["gIVBMA (hyper-g/n)", "gIVBMA (BRIC)", "IVBMA"]
+    
+    # Start LaTeX table with booktabs style
+    table = "\\begin{table}[htbp]\n"
+    table *= "\\centering\n"
+    table *= "\\caption{Top Models by Method and Scenario}\n"
+    table *= "\\label{tab:top_models}\n"
+
+    # Loop through each scenario
+    scenarios = ["Excluding parental education", "Including parental education"]
+    results_sets = [results_excl_edu, results_incl_edu]
+    
+    for (s, scenario) in enumerate(scenarios)
+        # Subtitle for the scenario
+        table *= "\\textbf{$scenario} \\\\\n"
+        
+        # Loop through each method
+        for (m, method) in enumerate(method_names)
+            # Get results for this method/scenario
+            results = results_sets[s][m]
+            num_models =  length(results)
+            
+            # Header for this method
+            table *= "\\textbf{$method} \\\\\n"
+            
+            # Create a table for this method
+            table *= "\\begin{tabular}{l ccc}\n"
+            table *= "\\toprule\n"
+            table *= "Model & L & M & Probability \\\\\n"
+            table *= "\\midrule\n"
+            
+            # Show up to num_models models
+            models_to_show = min(num_models, length(results))
+            for j in 1:models_to_show
+                model = results[j]
+                table *= "$j & $(model.L) & $(model.M) & $(model.probability) \\\\\n"
+            end
+            
+            table *= "\\bottomrule\n"
+            table *= "\\end{tabular}\n"
+            
+            # Add space between methods
+            if m < length(method_names) || s < length(scenarios)
+                table *= "\n\\vspace{2ex}\n\n"
+            end
+        end
+        
+        # Add extra space between scenarios
+        if s < length(scenarios)
+            table *= "\\vspace{3ex}\n"
+        end
+    end
+    
+    # Close table
+    table *= "\\end{table}\n"
+    
+    return table
+end
+
+results_excl_edu = [
+    find_frequent_models(res_hg_1.L, res_hg_2.M, 5),
+    find_frequent_models(res_bric_1.L, res_bric_2.M, 5),
+    find_frequent_models(res_ivbma_1.L, res_ivbma_2.M[:, 1, :]', 5)
+]
+
+results_incl_edu = [
+    find_frequent_models(res_hg_2.L, res_hg_2.M, 5),
+    find_frequent_models(res_bric_2.L, res_bric_2.M, 5),
+    find_frequent_models(res_ivbma_2.L, res_ivbma_2.M[:, 1, :]', 5)
+]
+
+generate_latex_table(results_excl_edu, results_incl_edu) |> println
 
 # Create PIP table
 function create_pip_table(hg, bric, ivbma, bma)
     tab_hg = [mean(hg.L, dims = 1)' mean(hg.M, dims = 1)']
     tab_bric = [mean(bric.L, dims = 1)' mean(bric.M, dims = 1)']
-    tab_ivbma = [ivbma.L_bar[Not(1:3)] ivbma.M_bar[1, :]]
+    tab_ivbma = [ivbma.L_bar[Not(1:2)] ivbma.M_bar[1, :]]
     tab_bma = mean(bma.L, dims = 1)'
     return [tab_hg tab_bric tab_ivbma tab_bma]
 end
