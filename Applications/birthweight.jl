@@ -2,7 +2,7 @@
 
 using DataFrames, CSV, InvertedIndices, Random, LinearAlgebra 
 using StatsModels, Distributions, ProgressBars
-using CairoMakie
+using CairoMakie, LaTeXStrings
 using Pkg; Pkg.activate("../../gIVBMA")
 using gIVBMA
 
@@ -32,7 +32,7 @@ res_bma = bma(log.(y), x[:, 1:1], W; iter = iters, burn = Int(iters/5), g_prior 
 
 # save plot of posteriors
 p = Figure()
-ax1, ax2 = (Axis(p[1, 1], xlabel = "τ", ylabel = "Density"), Axis(p[1, 2], xlabel = "σᵧₓ / σₓₓ", ylabel = "Density"))
+ax1, ax2 = (Axis(p[1, 1], xlabel = L"\tau", ylabel = ""), Axis(p[1, 2], xlabel = L"\sigma_{yx} / \sigma_{xx}", ylabel = ""))
 
 lines!(ax1, rbw(res_pln)[1], label = "gIVBMA (Poisson)")
 lines!(ax1, rbw(res_gauss)[1], label = "gIVBMA (Gaussian)", color = Makie.wong_colors()[2])
@@ -59,7 +59,7 @@ include("../Simulations/competing_methods.jl")
 function kfold_cv(y, X, Z, W; k=5)
     n = length(y)
     fold_size = Int(floor(n / k))
-    meths = ["gIVBMA (PLN)", "gIVBMA (Gaussian)", "IVBMA (KL)", "TSLS"]
+    meths = ["BMA", "gIVBMA (PLN)", "gIVBMA (Gaussian)", "IVBMA (KL)", "TSLS"]
     lps_store = zeros(k, length(meths))
 
     # Generate indices for each fold
@@ -76,12 +76,15 @@ function kfold_cv(y, X, Z, W; k=5)
         y_test, X_test, Z_test, W_test = y[test_idx], X[test_idx, :], Z[test_idx, :], W[test_idx, :]
 
         # Fit the model on the training set
-        fit_pln = ivbma(y_train, X_train, Z_train, W_train; dist = ["PLN", "PLN"], g_prior = "hyper-g/n")
-        fit_gauss = ivbma(log.(y_train), X_train, Z_train, W_train; dist = ["Gaussian", "PLN"], g_prior = "hyper-g/n")
+        fit_bma = bma(log.(y_train), X_train, W_train; g_prior = "hyper-g/n")
+        fit_pln = givbma(y_train, X_train, Z_train, W_train; dist = ["PLN", "PLN"], g_prior = "hyper-g/n")
+        fit_gauss = givbma(log.(y_train), X_train, Z_train, W_train; dist = ["Gaussian", "PLN"], g_prior = "hyper-g/n")
 
         # Compute LPS for the current test observations
         corr = mean(log.(y_test)) # add correction for the log-linear models to get them to the same scale
+
         lps_store[fold, :] = [
+            lps_bma(fit_bma, log.(y_test), X_test, W_test) + corr,
             lps(fit_pln, y_test, X_test, Z_test, W_test),
             lps(fit_gauss, log.(y_test), X_test, Z_test, W_test) + corr,
             ivbma_kl(log.(y_train), X_train, Z_train, W_train, log.(y_test), X_test, Z_test, W_test).lps + corr,
@@ -123,6 +126,6 @@ function create_latex_table(res, methods)
     return table
 end
 
-methods = ["gIVBMA (PLN)", "gIVBMA (Gaussian)", "IVBMA (KL)", "TSLS"]
-latex_table = create_latex_table(res, methods)
+meths = ["BMA", "gIVBMA (PLN)", "gIVBMA (Gaussian)", "IVBMA (KL)", "TSLS"]
+latex_table = create_latex_table(res, meths)
 println(latex_table)

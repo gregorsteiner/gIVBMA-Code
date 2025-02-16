@@ -231,10 +231,10 @@ end
 """
     Implement the IVBMA procedure of Karl & Lenkoski based on their R package.
 """
-function ivbma_kl(y, X, Z, W, y_h, X_h, Z_h, W_h; target_M = [1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0])
+function ivbma_kl(y, X, Z, W, y_h, X_h, Z_h, W_h; s = 2000, b = 1000, target_M = [1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0])
     n, l = (size(X, 1), size(X, 2))
 
-    @rput y X Z W
+    @rput y X Z W s b
     R"""
     source("ivbma.R")
     max_attempts <- 5
@@ -242,7 +242,7 @@ function ivbma_kl(y, X, Z, W, y_h, X_h, Z_h, W_h; target_M = [1, 0, 0, 0, 1, 0, 
     # It sometimes happens that the ivbma code fails because of a singular matrix (this is usually within the Bartlett decomposition). We just retry it a few times (this rarely happens so should not affect the results too much)
     while(attempt <= max_attempts) {
         tryCatch({
-            res <- ivbma(y, X, Z, cbind(rep(1, nrow(W)), W), print.every = 1e5)
+            res <- ivbma(y, X, Z, cbind(rep(1, nrow(W)), W), s = s, b = b, odens = s-b, print.every = 1e5)
             break  # If successful, exit the while loop
         }, error = function(e) {
             if(attempt == max_attempts) {
@@ -275,7 +275,11 @@ function ivbma_kl(y, X, Z, W, y_h, X_h, Z_h, W_h; target_M = [1, 0, 0, 0, 1, 0, 
 
     # compute posterior probability of true treatment model (this only matters for the simulation with multiple endogenous variables; we do not use this in the other scenarios)
     M = res[:M][2:end, :, :]
-    posterior_probability_M = [mean(mapslices(slice -> slice[:, 1] == target_M, M, dims=[1,2])), mean(mapslices(slice -> slice[:, 2] == target_M, M, dims=[1,2]))]
+    if l > 1 # the line below only makes sens if l is at least 2
+        posterior_probability_M = [mean(mapslices(slice -> slice[:, 1] == target_M, M, dims=[1,2])), mean(mapslices(slice -> slice[:, 2] == target_M, M, dims=[1,2]))]
+    else # else this doesn't matter and we'll just assign (0, 0), but won't use this
+        posterior_probability_M = [0, 0]
+    end
 
     # compute mean model size (if l>1 we average the model sizes for the different endogenous variables)
     M_size_bar = mean(sum(M, dims = 1), dims = 3)[1, :, 1]
@@ -284,12 +288,17 @@ function ivbma_kl(y, X, Z, W, y_h, X_h, Z_h, W_h; target_M = [1, 0, 0, 0, 1, 0, 
         τ = l == 1 ? mean(τ) : mean(τ, dims = 1)[1, :],
         CI = l == 1 ? quantile(τ, [0.025, 0.975]) : [quantile(τ[:, i], [0.025, 0.975]) for i in axes(τ, 2)],
         lps = lps,
+        L = res[:L],
+        M = res[:M],
         posterior_probability_M = posterior_probability_M,
         M_bar = res[:M_bar][2:end, :]',
-        M_size_bar = M_size_bar
+        M_size_bar = M_size_bar,
+        L_bar = res[:L_bar],
+        τ_full = res[:rho][:, 1:l],
+        Σ = Σ
     )
 end
 
 # alternative method for invalid instruments
-ivbma_kl(y, X, Z, y_h, X_h, Z_h) = ivbma_kl(y, X, Matrix{Float64}(undef, length(y), 0), Z, y_h, X_h, Matrix{Float64}(undef, length(y_h), 0), Z_h)
+ivbma_kl(y, X, Z, y_h, X_h, Z_h; s = 2000, b = 1000) = ivbma_kl(y, X, Matrix{Float64}(undef, length(y), 0), Z, y_h, X_h, Matrix{Float64}(undef, length(y_h), 0), Z_h; s = s, b = b)
 
