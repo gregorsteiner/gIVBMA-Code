@@ -2,16 +2,14 @@
 
 using DataFrames, CSV, InvertedIndices, Random, LinearAlgebra 
 using StatsModels, Distributions, ProgressBars
-using CairoMakie, LaTeXStrings
+using CairoMakie, LaTeXStrings, KernelDensity
 using Pkg; Pkg.activate("../../gIVBMA")
 using gIVBMA
 
 include("../Simulations/bma.jl")
+include("../Simulations/competing_methods.jl")
 
-"""
-    Fit full IVBMA models.
-"""
-# load data
+##### Load and prepare data #####
 df = CSV.read("birthweight.csv", DataFrame, drop = [1], missingstring="NA")
 
 # drop all observations with missing values
@@ -24,13 +22,40 @@ Z = modelmatrix(@formula(cigs ~ cigprice + cigtax + fatheduc + motheduc), df)
 W = modelmatrix(@formula(cigs ~ (parity + male + white) + (cigprice + cigtax + fatheduc + motheduc) & (parity + male + white)), df)
 
 
-# fit model
+##### Run analysis #####
 iters = 5000
 res_pln = givbma(y, x, Z, W; iter = iters, burn = Int(iters/5), dist = ["PLN", "PLN"], g_prior = "hyper-g/n")
 res_gauss = givbma(log.(y), x, Z, W; iter = iters, burn = Int(iters/5), dist = ["Gaussian", "PLN"], g_prior = "hyper-g/n")
 res_bma = bma(log.(y), x[:, 1:1], W; iter = iters, burn = Int(iters/5), g_prior = "hyper-g/n")
 
+iters_ivbma = 10*iters
+res_ivbma = ivbma_kl(log.(y), x, Z, W, log.(y), x, Z, W; s = iters_ivbma, b = Int(iters_ivbma/5))
+
+
 # save plot of posteriors
+function compute_posterior_density(sample)
+    # Separate zeros and non-zeros
+    zeros = sample[sample .== 0.0]
+    nonzeros = sample[sample .!= 0.0]
+    
+    # Calculate proportions
+    n_total = length(sample)
+    prop_zero = length(zeros) / n_total
+    prop_nonzero = length(nonzeros) / n_total
+    
+    kde_obj = kde(nonzeros)
+
+    # Scale the density to reflect the proportion of non-zero values
+    scaled_density = kde_obj.density #* prop_nonzero
+
+    return (
+        kde_obj.x,
+        scaled_density,
+        prop_zero
+    )
+end
+
+
 p = Figure()
 ax1, ax2 = (Axis(p[1, 1], xlabel = L"\tau", ylabel = ""), Axis(p[1, 2], xlabel = L"\sigma_{yx} / \sigma_{xx}", ylabel = ""))
 
@@ -38,23 +63,28 @@ lines!(ax1, rbw(res_pln)[1], label = "gIVBMA (Poisson)")
 lines!(ax1, rbw(res_gauss)[1], label = "gIVBMA (Gaussian)", color = Makie.wong_colors()[2])
 lines!(ax1, rbw_bma(res_bma)[1], label = "BMA (Gaussian)", color = Makie.wong_colors()[3])
 
+d = compute_posterior_density(res_ivbma.τ_full[:, 1])
+lines!(ax1, d[1], d[2], color = Makie.wong_colors()[4], label = "IVBMA")
+lines!(ax1, [0.0, 0.0], [0.0, 200], color = Makie.wong_colors()[4])
+
 density!(ax2, map(x -> x[1, 2]/x[2, 2], res_pln.Σ), label = "gIVBMA (Poisson)", color = :transparent, strokecolor = Makie.wong_colors()[1], strokewidth = 1.5)
 density!(ax2, map(x -> x[1, 2]/x[2, 2], res_gauss.Σ), label = "gIVBMA (Gaussian)", color = :transparent, strokecolor = Makie.wong_colors()[2], strokewidth = 1.5)
+density!(ax2, res_ivbma.Σ[1, 2, :] ./ res_ivbma.Σ[2, 2, :], color = :transparent, strokecolor = Makie.wong_colors()[4], strokewidth = 1.5)
 
 Legend(p[2, 1:2], ax1, orientation = :horizontal)
 save("Posterior_Birthweight.pdf", p)
 
 
+println("Proportion of zeros for IVBMA: " * string(round(d[3], digits = 3)))
+
+
 # check instruments
-mean(res_pln.M, dims = 1)
-mean(res_gauss.M, dims = 1)
+[[repeat([missing], 4); mean(res_pln.L, dims = 2)] mean(res_pln.M, dims = 2)]
+[[repeat([missing], 4); mean(res_gauss.L, dims = 2)] mean(res_gauss.M, dims = 2)]
+[[repeat([missing], 4); res_ivbma.L_bar[Not(1:2)]] res_ivbma.M_bar']
 
 
-"""
-    LPS analysis.
-"""
-
-include("../Simulations/competing_methods.jl")
+##### LPS Comparison #####
 
 function kfold_cv(y, X, Z, W; k=5)
     n = length(y)
