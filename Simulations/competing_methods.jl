@@ -270,7 +270,8 @@ function ivbma_kl(y, X, Z, W, y_h, X_h, Z_h, W_h; s = 2000, b = 1000, target_M =
 
         scores[:, i] = [pdf(Normal(mean_y[j], sqrt(σ_y_x)), y_h[j]) for j in eachindex(y_h)]
     end
-    scores_avg = mean(scores; dims = 2)
+    scores_avg = mean(scores; dims = 2)[:, 1]
+    scores_avg = ifelse.(scores_avg .== 0, 1e-300, scores_avg) # if any of the scores is numericaly zero, we set it to 1e-300 such that its log is not -Inf
     lps = -mean(log.(scores_avg))
 
     # compute posterior probability of true treatment model (this only matters for the simulation with multiple endogenous variables; we do not use this in the other scenarios)
