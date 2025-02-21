@@ -74,4 +74,4 @@ Legend(fig[2, 1:3], ax2, orientation = :horizontal)
 fig[1, 1:2] = GridLayout(padding = (10, 10, 10, 40)) # Add space for the legend below
 
 # Save the figure
-save("Implied_prior_with_exponential.pdf", fig, size = (900, 400))
+save("Implied_prior_with_exponential.pdf", fig)
