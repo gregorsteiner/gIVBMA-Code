@@ -27,13 +27,14 @@ end
 
 function gen_data_KO2010(n = 100, c_M = 3/8, τ = 0.1, p = 20, k = 10, c = 1/2)
     V = rand(MvNormal(zeros(p+k), I), n)'
+    V[:, 2:2:end] .*= 100 # adjust scaling by multiplying every other column by 100
     Z = V[:,1:p]
     W = V[:,(p+1):(p+k)]
 
-    α = 1; γ = 1
-    δ_Z = gen_instr_coeff(p, c_M)
-    δ_W = [ones(Int(k/2)); zeros(Int(k/2))] .* 0.1
-    β = [ones(Int(k/2)); zeros(Int(k/2))]
+    α, γ = (1, 1)
+    δ_Z = gen_instr_coeff(p, c_M) ./ repeat([1.0, 100.0], Int(p/2))
+    δ_W = [ones(Int(k/2)); zeros(Int(k/2))] .* 0.1 ./ repeat([1.0, 100.0], Int(k/2))
+    β = [ones(Int(k/2)); zeros(Int(k/2))] ./ repeat([1.0, 100.0], Int(k/2))
 
     u = rand(MvNormal([0, 0], [1 c; c 1]), n)'
     x = γ .+ Z * δ_Z + W * δ_W + u[:,2]
@@ -113,7 +114,6 @@ end
 
 
 ##### Run the simulation #####
-
 m = 100
 c_M = [1/8, 3/8] # In this setup we get a first stage R^2 ≈ 0.1 with c_M = 3/8 and R^2 ≈ 0.01 with c_M = 1/8.
 
