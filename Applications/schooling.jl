@@ -7,7 +7,7 @@ include("../Simulations/bma.jl")
 include("../Simulations/competing_methods.jl")
 
 ##### Load and prepare data #####
-d = CSV.read("card.csv", DataFrame, missingstring = "NA")[:, Not(1:2)]
+d = CSV.read("card.csv", DataFrame, missingstring = "NA")[:, Not(1)]
 
 d.agesq = d.age .^ 2
 
@@ -32,7 +32,7 @@ Z_2 = Matrix(d_par_educ[:, ["age", "agesq", "nearc2", "nearc4", "momdad14", "sin
 
 ##### Run analysis (fitting the models takes >10hours) #####
 Random.seed!(42)
-iters = 50000
+iters = 2000
 res_hg_1 = givbma(y_1, X_1, Z_1; iter = iters, burn = Int(iters/10), g_prior = "hyper-g/n")
 res_bric_1 = givbma(y_1, X_1, Z_1; iter = iters, burn = Int(iters/10), g_prior = "BRIC")
 res_bma_1 = bma(y_1, X_1, Z_1; iter = iters, burn = Int(iters/10), g_prior = "hyper-g/n")
@@ -56,9 +56,13 @@ res_hg_1, res_bric_1, res_bma_1, res_ivbma_1 = (res[:"res_hg_1"], res[:"res_bric
 res_hg_2, res_bric_2, res_bma_2, res_ivbma_2 = (res[:"res_hg_2"], res[:"res_bric_2"], res[:"res_bma_2"], res[:"res_ivbma_2"])
 
 
-# compute Bayesfactors
-exp(logsumexp(res_hg_1.ML) - logsumexp(res_hg_2.ML))
-exp(logsumexp(res_bric_1.ML) - logsumexp(res_bric_2.ML))
+# compare models using the smaller set of observations
+bool = map(x -> x in d_par_educ.id, d_no_par_educ.id)
+res_hg_1_small = givbma(y_1[bool], X_1[bool, :], Z_1[bool, :]; iter = iters, burn = Int(iters/10), g_prior = "hyper-g/n")
+println(
+    "Bayes factor comparing the models excluding and including parental education on the shared set of observations: " * 
+    string(exp(logsumexp(res_hg_1_small.ML) - logsumexp(res_hg_2.ML)))
+)
 
 
 # Plot the posterior results
