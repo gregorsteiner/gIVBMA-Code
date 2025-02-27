@@ -11,8 +11,11 @@ d = CSV.read("card.csv", DataFrame, missingstring = "NA")[:, Not(1)]
 
 d.agesq = d.age .^ 2
 
-d_par_educ = d[:, Not(["IQ", "KWW"])] # DataFrame with parents' education => more missing values
-d_no_par_educ = d[:, Not(["IQ", "KWW", "fatheduc", "motheduc"])] # DataFrame without parents' education
+covs_1 = ["age", "agesq", "nearc2", "nearc4", "momdad14", "sinmom14", "step14", "black", "south", "smsa", "married", "reg662", "reg663", "reg664", "reg665", "reg666", "reg667", "reg668", "reg669"]
+covs_2 = ["age", "agesq", "nearc2", "nearc4", "momdad14", "sinmom14", "step14", "black", "south", "smsa", "married", "reg662", "reg663", "reg664", "reg665", "reg666", "reg667", "reg668", "reg669", "fatheduc", "motheduc"]
+
+d_no_par_educ = d[:, [["id", "lwage", "educ"]; covs_1]]
+d_par_educ = d[:, [["id", "lwage", "educ"]; covs_2]]
 
 dropmissing!(d_par_educ)
 dropmissing!(d_no_par_educ)
@@ -20,19 +23,17 @@ dropmissing!(d_no_par_educ)
 # Data without parents' education
 y_1 = Vector(d_no_par_educ.lwage)
 X_1 = Matrix(d_no_par_educ[:, ["educ"]])
-Z_1 = Matrix(d_no_par_educ[:, ["age", "agesq", "nearc2", "nearc4", "momdad14", "sinmom14", "step14", "black", "south", "smsa", "married",
-                               "reg662", "reg663", "reg664", "reg665", "reg666", "reg667", "reg668", "reg669"]])
+Z_1 = Matrix(d_no_par_educ[:, covs_1])
 
 # Data with parents' education
 y_2 = Vector(d_par_educ.lwage)
 X_2 = Matrix(d_par_educ[:, ["educ"]])
-Z_2 = Matrix(d_par_educ[:, ["age", "agesq", "nearc2", "nearc4", "momdad14", "sinmom14", "step14", "black", "south", "smsa", "married",
-                            "reg662", "reg663", "reg664", "reg665", "reg666", "reg667", "reg668", "reg669", "fatheduc", "motheduc"]])
+Z_2 = Matrix(d_par_educ[:, covs_2])
 
 
 ##### Run analysis (fitting the models takes >10hours) #####
 Random.seed!(42)
-iters = 2000
+iters = 50000
 res_hg_1 = givbma(y_1, X_1, Z_1; iter = iters, burn = Int(iters/10), g_prior = "hyper-g/n")
 res_bric_1 = givbma(y_1, X_1, Z_1; iter = iters, burn = Int(iters/10), g_prior = "BRIC")
 res_bma_1 = bma(y_1, X_1, Z_1; iter = iters, burn = Int(iters/10), g_prior = "hyper-g/n")
@@ -44,8 +45,12 @@ res_bric_2 = givbma(y_2, X_2, Z_2; iter = iters, burn = Int(iters/10), g_prior =
 res_bma_2 = bma(y_2, X_2, Z_2; iter = iters, burn = Int(iters/10), g_prior = "hyper-g/n")
 res_ivbma_2 = ivbma_kl(y_2, X_2, Z_2, y_2, X_2, Z_2; s = iters, b = Int(iters/10))
 
+# fit model without parental education on the smaller set of observations
+bool = map(x -> x in d_par_educ.id, d_no_par_educ.id)
+res_hg_1_small = givbma(y_1[bool], X_1[bool, :], Z_1[bool, :]; iter = iters, burn = Int(iters/10), g_prior = "hyper-g/n")
+
 # save posteriors for later use
-jldsave("Posterior_Samples_Schooling.jld2"; res_hg_1, res_bric_1, res_bma_1, res_ivbma_1, res_hg_2, res_bric_2, res_bma_2, res_ivbma_2)
+jldsave("Posterior_Samples_Schooling.jld2"; res_hg_1, res_bric_1, res_bma_1, res_ivbma_1, res_hg_2, res_bric_2, res_bma_2, res_ivbma_2, res_hg_1_small)
 
 
 ##### Create plots and tables of the results #####
@@ -54,16 +59,17 @@ jldsave("Posterior_Samples_Schooling.jld2"; res_hg_1, res_bric_1, res_bma_1, res
 res = load("Posterior_Samples_Schooling.jld2")
 res_hg_1, res_bric_1, res_bma_1, res_ivbma_1 = (res[:"res_hg_1"], res[:"res_bric_1"], res[:"res_bma_1"], res[:"res_ivbma_1"])
 res_hg_2, res_bric_2, res_bma_2, res_ivbma_2 = (res[:"res_hg_2"], res[:"res_bric_2"], res[:"res_bma_2"], res[:"res_ivbma_2"])
+res_hg_1_small = res[:"res_hg_1_small"]
 
 
 # compare models using the smaller set of observations
-bool = map(x -> x in d_par_educ.id, d_no_par_educ.id)
-res_hg_1_small = givbma(y_1[bool], X_1[bool, :], Z_1[bool, :]; iter = iters, burn = Int(iters/10), g_prior = "hyper-g/n")
 println(
     "Bayes factor comparing the models excluding and including parental education on the shared set of observations: " * 
-    string(exp(logsumexp(res_hg_1_small.ML) - logsumexp(res_hg_2.ML)))
+    string(exp(res_hg_1_small.ML_outcome + res_hg_1_small.ML_treatment - res_hg_2.ML_outcome - res_hg_2.ML_treatment))
 )
 
+res_hg_1_small.ML_outcome - res_hg_2.ML_outcome + res_hg_1_small.ML_treatment - res_hg_2.ML_treatment
+res_hg_1.ML_outcome - res_hg_2.ML_outcome + res_hg_1.ML_treatment - res_hg_2.ML_treatment
 
 # Plot the posterior results
 cols = Makie.wong_colors()
@@ -76,10 +82,10 @@ lines!(ax1, rbw_bma(res_bma_1)[1], color = cols[3], linestyle = :dashdot, label 
 kde_ivbma_1 = kde(res_ivbma_1.τ_full[:, 1])
 lines!(ax1, kde_ivbma_1.x, kde_ivbma_1.density, color = cols[4], linestyle = :dashdotdot, label = "IVBMA")
 
-ax2 = Axis(fig[1, 2], xlabel = L"\sigma_{yx}")
-density!(ax2, map(x -> x[1, 2], res_hg_1.Σ), color = :transparent, strokecolor = cols[1], strokewidth = 1.5)
-density!(ax2, map(x -> x[1, 2], res_bric_1.Σ), color = :transparent, linestyle = :dot, strokecolor = cols[2], strokewidth = 1.5)
-density!(ax2, res_ivbma_1.Σ[1, 2, :], color = :transparent, linestyle = :dashdotdot, strokecolor = cols[4], strokewidth = 1.5)
+ax2 = Axis(fig[1, 2], xlabel = L"\sigma_{yx} / \sigma_{xx}")
+density!(ax2, res_hg_1.Σ[1, 2, :] ./ res_hg_1.Σ[2, 2, :], color = :transparent, strokecolor = cols[1], strokewidth = 1.5)
+density!(ax2, res_bric_1.Σ[1, 2, :] ./ res_bric_1.Σ[2, 2, :], color = :transparent, linestyle = :dot, strokecolor = cols[2], strokewidth = 1.5)
+density!(ax2, res_ivbma_1.Σ[1, 2, :] ./ res_ivbma_1.Σ[2, 2, :] , color = :transparent, linestyle = :dashdotdot, strokecolor = cols[4], strokewidth = 1.5)
 
 ax3 = Axis(fig[2, 1], xlabel = L"\tau",  ylabel = "(b)")
 lines!(ax3, rbw(res_hg_2)[1], color = cols[1], label = "gIVBMA (hyper-g/n)")
@@ -87,27 +93,27 @@ lines!(ax3, rbw(res_bric_2)[1], color = cols[2], linestyle = :dot, label = "gIVB
 lines!(ax3, rbw_bma(res_bma_2)[1], color = cols[3], linestyle = :dashdot, label = "BMA (hyper-g/n)")
 kde_ivbma_2 = kde(res_ivbma_2.τ_full[:, 1])
 lines!(ax3, kde_ivbma_2.x, kde_ivbma_2.density, color = cols[4], linestyle = :dashdotdot, label = "IVBMA")
-#xlims!(ax3, (-0.05, 0.15))
 
-ax4 = Axis(fig[2, 2], xlabel = L"\sigma_{yx}")
-density!(ax4, map(x -> x[1, 2], res_hg_2.Σ), color = :transparent, strokecolor = cols[1], strokewidth = 1.5)
-density!(ax4, map(x -> x[1, 2], res_bric_2.Σ), color = :transparent, linestyle = :dot, strokecolor = cols[2], strokewidth = 1.5)
-density!(ax4, res_ivbma_2.Σ[1, 2, :], color = :transparent, linestyle = :dashdotdot, strokecolor = cols[4], strokewidth = 1.5)
+ax4 = Axis(fig[2, 2], xlabel = L"\sigma_{yx} / \sigma_{xx}")
+density!(ax4, res_hg_2.Σ[1, 2, :] ./ res_hg_2.Σ[2, 2, :], color = :transparent, strokecolor = cols[1], strokewidth = 1.5)
+density!(ax4, res_bric_2.Σ[1, 2, :] ./ res_bric_2.Σ[2, 2, :], color = :transparent, linestyle = :dot, strokecolor = cols[2], strokewidth = 1.5)
+density!(ax4, res_ivbma_2.Σ[1, 2, :] ./ res_ivbma_2.Σ[2, 2, :], color = :transparent, linestyle = :dashdotdot, strokecolor = cols[4], strokewidth = 1.5)
 
 Legend(fig[3, 1:2], ax1, orientation = :horizontal)
 save("Posterior_Schooling.pdf", fig)
 
+
 # traceplots
 tp = Figure()
 ax1 = Axis(tp[1, 1], xlabel = "Iteration", ylabel = L"\tau")
-lines!(ax1, res_hg_1.τ[:, 1], color = cols[1], label = "gIVBMA (hyper-g/n)", alpha = 0.8)
-lines!(ax1, res_bric_1.τ[:, 1], color = cols[2], linestyle = :dot, label = "gIVBMA (BRIC)", alpha = 0.8)
+lines!(ax1, res_hg_1.τ[1, :], color = cols[1], label = "gIVBMA (hyper-g/n)", alpha = 0.8)
+lines!(ax1, res_bric_1.τ[1, :], color = cols[2], linestyle = :dot, label = "gIVBMA (BRIC)", alpha = 0.8)
 lines!(ax1, res_bma_1.τ[:, 1], color = cols[3], linestyle = :dashdot, label = "BMA (hyper-g/n)", alpha = 0.8)
 lines!(ax1, res_ivbma_1.τ_full[:, 1], color = cols[4], linestyle = :dashdotdot, label = "IVBMA", alpha = 0.8)
 
 ax2 = Axis(tp[2, 1], xlabel = "Iteration", ylabel = L"\tau")
-lines!(ax2, res_hg_2.τ[:, 1], color = cols[1], label = "gIVBMA (hyper-g/n)", alpha = 0.8)
-lines!(ax2, res_bric_2.τ[:, 1], color = cols[2], linestyle = :dot, label = "gIVBMA (BRIC)", alpha = 0.8)
+lines!(ax2, res_hg_2.τ[1, :], color = cols[1], label = "gIVBMA (hyper-g/n)", alpha = 0.8)
+lines!(ax2, res_bric_2.τ[1, :], color = cols[2], linestyle = :dot, label = "gIVBMA (BRIC)", alpha = 0.8)
 lines!(ax2, res_bma_2.τ[:, 1], color = cols[3], linestyle = :dashdot, label = "BMA (hyper-g/n)", alpha = 0.8)
 lines!(ax2, res_ivbma_2.τ_full[:, 1], color = cols[4], linestyle = :dashdotdot, label = "IVBMA", alpha = 0.8)
 
@@ -228,8 +234,8 @@ generate_latex_table(results_excl_edu, results_incl_edu) |> println
 
 # Create PIP table
 function create_pip_table(hg, bric, ivbma, bma)
-    tab_hg = [mean(hg.L, dims = 1)' mean(hg.M, dims = 1)']
-    tab_bric = [mean(bric.L, dims = 1)' mean(bric.M, dims = 1)']
+    tab_hg = [mean(hg.L, dims = 2) mean(hg.M, dims = 2)]
+    tab_bric = [mean(bric.L, dims = 2) mean(bric.M, dims = 2)]
     tab_ivbma = [ivbma.L_bar[Not(1:2)] ivbma.M_bar[1, :]]
     tab_bma = mean(bma.L, dims = 1)'
     return [tab_hg tab_bric tab_ivbma tab_bma]
@@ -287,14 +293,12 @@ end
 
 matrix_to_latex(
     create_pip_table(res_hg_1, res_bric_1, res_ivbma_1, res_bma_1),
-    ["age", "agesq", "nearc2", "nearc4", "momdad14", "sinmom14", "step14", "black", "south", "smsa", "married",
-                               "reg662", "reg663", "reg664", "reg665", "reg666", "reg667", "reg668", "reg669"]
+    covs_1
 )
 
 matrix_to_latex(
     create_pip_table(res_hg_2, res_bric_2, res_ivbma_2, res_bma_2),
-    ["age", "agesq", "nearc2", "nearc4", "momdad14", "sinmom14", "step14", "black", "south", "smsa", "married",
-                            "reg662", "reg663", "reg664", "reg665", "reg666", "reg667", "reg668", "reg669", "fatheduc", "motheduc"]
+    covs_2
 ) 
 
 
