@@ -48,9 +48,11 @@ res_ivbma_2 = ivbma_kl(y_2, X_2, Z_2, y_2, X_2, Z_2; s = iters, b = Int(iters/10
 # fit model without parental education on the smaller set of observations
 bool = map(x -> x in d_par_educ.id, d_no_par_educ.id)
 res_hg_1_small = givbma(y_1[bool], X_1[bool, :], Z_1[bool, :]; iter = iters, burn = Int(iters/10), g_prior = "hyper-g/n")
+res_bric_1_small = givbma(y_1[bool], X_1[bool, :], Z_1[bool, :]; iter = iters, burn = Int(iters/10), g_prior = "BRIC")
+
 
 # save posteriors for later use
-jldsave("Posterior_Samples_Schooling.jld2"; res_hg_1, res_bric_1, res_bma_1, res_ivbma_1, res_hg_2, res_bric_2, res_bma_2, res_ivbma_2, res_hg_1_small)
+jldsave("Posterior_Samples_Schooling.jld2"; res_hg_1, res_bric_1, res_bma_1, res_ivbma_1, res_hg_2, res_bric_2, res_bma_2, res_ivbma_2, res_hg_1_small, res_bric_1_small)
 
 
 ##### Create plots and tables of the results #####
@@ -59,17 +61,19 @@ jldsave("Posterior_Samples_Schooling.jld2"; res_hg_1, res_bric_1, res_bma_1, res
 res = load("Posterior_Samples_Schooling.jld2")
 res_hg_1, res_bric_1, res_bma_1, res_ivbma_1 = (res[:"res_hg_1"], res[:"res_bric_1"], res[:"res_bma_1"], res[:"res_ivbma_1"])
 res_hg_2, res_bric_2, res_bma_2, res_ivbma_2 = (res[:"res_hg_2"], res[:"res_bric_2"], res[:"res_bma_2"], res[:"res_ivbma_2"])
-res_hg_1_small = res[:"res_hg_1_small"]
+res_hg_1_small, res_bric_1_small = (res[:"res_hg_1_small"], res[:"res_bric_1_small"])
 
 
 # compare models using the smaller set of observations
 println(
-    "Bayes factor comparing the models excluding and including parental education on the shared set of observations: " * 
+    "Bayes factor comparing the models excluding and including parental education on the shared set of observations (under the hyper-g/n prior): " * 
     string(exp(res_hg_1_small.ML_outcome + res_hg_1_small.ML_treatment - res_hg_2.ML_outcome - res_hg_2.ML_treatment))
 )
 
-res_hg_1_small.ML_outcome - res_hg_2.ML_outcome + res_hg_1_small.ML_treatment - res_hg_2.ML_treatment
-res_hg_1.ML_outcome - res_hg_2.ML_outcome + res_hg_1.ML_treatment - res_hg_2.ML_treatment
+println(
+    "Bayes factor comparing the models excluding and including parental education on the shared set of observations (under the BRIC prior): " * 
+    string(exp(res_bric_1_small.ML_outcome + res_bric_1_small.ML_treatment - res_bric_2.ML_outcome - res_bric_2.ML_treatment))
+)
 
 # Plot the posterior results
 cols = Makie.wong_colors()
