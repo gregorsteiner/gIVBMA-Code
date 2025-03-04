@@ -108,7 +108,7 @@ function jive(y, x, Z, W, y_h, x_h, W_h; level = 0.05)
     # Compute residuals and standard errors
     residuals = y - U * β_hat
     σ2_hat = sum(residuals.^2) / (n - size(U, 2))
-    sd_τ_hat = sqrt(σ2_hat * inv(U_jive' * U_jive)[2, 2])
+    sd_τ_hat = sqrt(σ2_hat * inv(U' * U_jive * inv(U_jive' * U_jive) * U_jive' * U)[2, 2])
 
     # Confidence interval for τ_hat
     ci = τ_hat .+ [-1, 1] * quantile(Normal(0, 1), 1 - level/2) * sd_τ_hat
@@ -150,7 +150,7 @@ function rjive(y, x, Z, W, y_h, x_h, W_h; level = 0.05)
     # Compute residuals and standard errors
     residuals = y - U * β_hat
     σ2_hat = sum(residuals.^2) / (n - size(U, 2))
-    sd_τ_hat = sqrt(σ2_hat * inv(U_jive' * U_jive)[2, 2])
+    sd_τ_hat = sqrt(σ2_hat * inv(U' * U_jive * inv(U_jive' * U_jive) * U_jive' * U)[2, 2])
 
     # Confidence interval for τ_hat
     ci = τ_hat .+ [-1, 1] * quantile(Normal(0, 1), 1 - level/2) * sd_τ_hat

@@ -227,7 +227,7 @@ function make_stacked_multicolumn_table(res)
 
     # Finish the table
     table_str *= "\\bottomrule\n\\end{tabular}\n"
-    table_str *= "\\caption{Simulation results with a Poisson endogenous variable and many weak instruments based on 100 simulated datasets. The best values in each column are printed in bold. Post-Lasso only returns estimates for \$\\tau\$, but not for the other coefficients, so we cannot compute the LPS. When no instrument is selected, no effect estimates are provided, therefore we do not consider those cases. The number of times no instruments were selected  in the first stage is (from top-left to bottom-right): " * join(PL_frequencies, ", ") * ".}\n"
+    table_str *= "\\caption{\\textbf{Many Weak Instruments:} Simulation results with a Poisson endogenous variable and many weak instruments based on 100 simulated datasets. The best values in each column are printed in bold. Post-Lasso only returns estimates for \$\\tau\$, but not for the other coefficients, so we cannot compute the LPS. When no instrument is selected, no effect estimates are provided, therefore we do not consider those cases. The number of times no instruments were selected  in the first stage is (from top-left to bottom-right): " * join(PL_frequencies, ", ") * ".}\n"
     table_str *= "\\label{tab:PLN_Sim}\n\\end{table}"
 
     return table_str
