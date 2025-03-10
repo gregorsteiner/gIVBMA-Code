@@ -49,10 +49,11 @@ res_ivbma_2 = ivbma_kl(y_2, X_2, Z_2, y_2, X_2, Z_2; s = iters, b = Int(iters/10
 bool = map(x -> x in d_par_educ.id, d_no_par_educ.id)
 res_hg_1_small = givbma(y_1[bool], X_1[bool, :], Z_1[bool, :]; iter = iters, burn = Int(iters/10), g_prior = "hyper-g/n")
 res_bric_1_small = givbma(y_1[bool], X_1[bool, :], Z_1[bool, :]; iter = iters, burn = Int(iters/10), g_prior = "BRIC")
-
+res_bma_1_small = bma(y_1[bool], X_1[bool, :], Z_1[bool, :]; iter = iters, burn = Int(iters/10), g_prior = "hyper-g/n")
+res_ivbma_1_small = ivbma_kl(y_1[bool], X_1[bool, :], Z_1[bool, :], y_1[bool], X_1[bool, :], Z_1[bool, :]; s = iters, b = Int(iters/10))
 
 # save posteriors for later use
-jldsave("Posterior_Samples_Schooling.jld2"; res_hg_1, res_bric_1, res_bma_1, res_ivbma_1, res_hg_2, res_bric_2, res_bma_2, res_ivbma_2, res_hg_1_small, res_bric_1_small)
+jldsave("Posterior_Samples_Schooling.jld2"; res_hg_1, res_bric_1, res_bma_1, res_ivbma_1, res_hg_2, res_bric_2, res_bma_2, res_ivbma_2, res_hg_1_small, res_bric_1_small, res_bma_1_small, res_ivbma_1_small)
 
 
 ##### Create plots and tables of the results #####
@@ -61,30 +62,35 @@ jldsave("Posterior_Samples_Schooling.jld2"; res_hg_1, res_bric_1, res_bma_1, res
 res = load("Posterior_Samples_Schooling.jld2")
 res_hg_1, res_bric_1, res_bma_1, res_ivbma_1 = (res[:"res_hg_1"], res[:"res_bric_1"], res[:"res_bma_1"], res[:"res_ivbma_1"])
 res_hg_2, res_bric_2, res_bma_2, res_ivbma_2 = (res[:"res_hg_2"], res[:"res_bric_2"], res[:"res_bma_2"], res[:"res_ivbma_2"])
-res_hg_1_small, res_bric_1_small = (res[:"res_hg_1_small"], res[:"res_bric_1_small"])
+res_hg_1_small, res_bric_1_small, res_bma_1_small, res_ivbma_1_small = (res[:"res_hg_1_small"], res[:"res_bric_1_small"], res[:"res_bma_1_small"], res[:"res_ivbma_1_small"])
 
-
-# compare models using the smaller set of observations
-println(
-    "Bayes factor comparing the models excluding and including parental education on the shared set of observations (under the hyper-g/n prior): " * 
-    string(exp(res_hg_1_small.ML_outcome + res_hg_1_small.ML_treatment - res_hg_2.ML_outcome - res_hg_2.ML_treatment))
-)
-
-println(
-    "Bayes factor comparing the models excluding and including parental education on the shared set of observations (under the BRIC prior): " * 
-    string(exp(res_bric_1_small.ML_outcome + res_bric_1_small.ML_treatment - res_bric_2.ML_outcome - res_bric_2.ML_treatment))
-)
 
 # Plot the posterior results
 cols = Makie.wong_colors()
+function compute_posterior_density(sample)
+    nonzeros = sample[sample .!= 0.0]
+    n_total = length(sample)
+    prop_nonzero = length(nonzeros) / n_total
+    
+    kde_obj = kde(nonzeros)
+    scaled_density = kde_obj.density * prop_nonzero
+    height_point_mass = maximum(kde_obj.density) * (1 - prop_nonzero)
+
+    return (
+        kde_obj.x,
+        scaled_density,
+        1 - prop_nonzero,
+        height_point_mass
+    )
+end
 
 fig = Figure()
 ax1 = Axis(fig[1, 1], xlabel = L"\tau", ylabel = "(a)")
 lines!(ax1, rbw(res_hg_1)[1], color = cols[1], label = "gIVBMA (hyper-g/n)")
 lines!(ax1, rbw(res_bric_1)[1], color = cols[2], linestyle = :dot, label = "gIVBMA (BRIC)")
 lines!(ax1, rbw_bma(res_bma_1)[1], color = cols[3], linestyle = :dashdot, label = "BMA (hyper-g/n)")
-kde_ivbma_1 = kde(res_ivbma_1.τ_full[:, 1])
-lines!(ax1, kde_ivbma_1.x, kde_ivbma_1.density, color = cols[4], linestyle = :dashdotdot, label = "IVBMA")
+kde_ivbma_1 = compute_posterior_density(res_ivbma_1.τ_full[:, 1])
+lines!(ax1, kde_ivbma_1[1], kde_ivbma_1[2], color = cols[4], linestyle = :dashdotdot, label = "IVBMA")
 
 ax2 = Axis(fig[1, 2], xlabel = L"\sigma_{yx} / \sigma_{xx}")
 density!(ax2, res_hg_1.Σ[1, 2, :] ./ res_hg_1.Σ[2, 2, :], color = :transparent, strokecolor = cols[1], strokewidth = 1.5)
@@ -95,8 +101,9 @@ ax3 = Axis(fig[2, 1], xlabel = L"\tau",  ylabel = "(b)")
 lines!(ax3, rbw(res_hg_2)[1], color = cols[1], label = "gIVBMA (hyper-g/n)")
 lines!(ax3, rbw(res_bric_2)[1], color = cols[2], linestyle = :dot, label = "gIVBMA (BRIC)")
 lines!(ax3, rbw_bma(res_bma_2)[1], color = cols[3], linestyle = :dashdot, label = "BMA (hyper-g/n)")
-kde_ivbma_2 = kde(res_ivbma_2.τ_full[:, 1])
-lines!(ax3, kde_ivbma_2.x, kde_ivbma_2.density, color = cols[4], linestyle = :dashdotdot, label = "IVBMA")
+kde_ivbma_2 = compute_posterior_density(res_ivbma_2.τ_full[:, 1])
+lines!(ax3, kde_ivbma_2[1], kde_ivbma_2[2], color = cols[4], linestyle = :dashdotdot, label = "IVBMA")
+lines!(ax3, [0.0, 0.0], [0.0, kde_ivbma_2[4]], color = Makie.wong_colors()[4], linestyle = :dashdotdot)
 
 ax4 = Axis(fig[2, 2], xlabel = L"\sigma_{yx} / \sigma_{xx}")
 density!(ax4, res_hg_2.Σ[1, 2, :] ./ res_hg_2.Σ[2, 2, :], color = :transparent, strokecolor = cols[1], strokewidth = 1.5)
@@ -106,6 +113,23 @@ density!(ax4, res_ivbma_2.Σ[1, 2, :] ./ res_ivbma_2.Σ[2, 2, :], color = :trans
 Legend(fig[3, 1:2], ax1, orientation = :horizontal)
 save("Posterior_Schooling.pdf", fig)
 
+
+# posterior results for the model excluding parental education on the smaller shared set of observations
+fig = Figure()
+ax1 = Axis(fig[1, 1], xlabel = L"\tau", ylabel = "(a)")
+lines!(ax1, rbw(res_hg_1_small)[1], color = cols[1], label = "gIVBMA (hyper-g/n)")
+lines!(ax1, rbw(res_bric_1_small)[1], color = cols[2], linestyle = :dot, label = "gIVBMA (BRIC)")
+lines!(ax1, rbw_bma(res_bma_1_small)[1], color = cols[3], linestyle = :dashdot, label = "BMA (hyper-g/n)")
+kde_ivbma_1 = compute_posterior_density(res_ivbma_1_small.τ_full[:, 1])
+lines!(ax1, kde_ivbma_1[1], kde_ivbma_1[2], color = cols[4], linestyle = :dashdotdot, label = "IVBMA")
+
+ax2 = Axis(fig[1, 2], xlabel = L"\sigma_{yx} / \sigma_{xx}")
+density!(ax2, res_hg_1_small.Σ[1, 2, :] ./ res_hg_1_small.Σ[2, 2, :], color = :transparent, strokecolor = cols[1], strokewidth = 1.5)
+density!(ax2, res_bric_1_small.Σ[1, 2, :] ./ res_bric_1_small.Σ[2, 2, :], color = :transparent, linestyle = :dot, strokecolor = cols[2], strokewidth = 1.5)
+density!(ax2, res_ivbma_1_small.Σ[1, 2, :] ./ res_ivbma_1_small.Σ[2, 2, :] , color = :transparent, linestyle = :dashdotdot, strokecolor = cols[4], strokewidth = 1.5)
+
+Legend(fig[2, 1:2], ax1, orientation = :horizontal)
+save("Posterior_Schooling_small.pdf", fig)
 
 # traceplots
 tp = Figure()
@@ -289,7 +313,7 @@ function matrix_to_latex(matrix, rownames)
 
     # Close table and add caption at bottom
     latex *= "\\bottomrule\n\\end{tabular}\n"
-    latex *= "\\caption{\\textbf{Returns to schooling:} Posterior inclusion probabilities for the \\cite{card1995collegeproximity} example. The IVBMA posterior inclusion probabilities are for education.}\n"
+    latex *= "\\caption{\\textbf{Returns to schooling:} Posterior inclusion probabilities for the \\cite{card1995collegeproximity} example.}\n"
     latex *= "\\end{table}"
 
     return println(latex)
@@ -303,8 +327,13 @@ matrix_to_latex(
 matrix_to_latex(
     create_pip_table(res_hg_2, res_bric_2, res_ivbma_2, res_bma_2),
     covs_2
-) 
+)
 
+
+matrix_to_latex(
+    create_pip_table(res_hg_1_small, res_bric_1_small, res_ivbma_1_small, res_bma_1_small),
+    covs_1
+)
 
 ##### LPS Comparison #####
 using ProgressBars
