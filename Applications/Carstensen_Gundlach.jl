@@ -52,27 +52,6 @@ axislegend(; position = :lt)
 p
 
 
-# check posterior predictive
-post_pred_bma = [posterior_predictive_bma(res_bma, X[idx, :], Z[idx, :]) for idx in eachindex(y)]
-post_pred_hg = [posterior_predictive(res_hg, X[idx, :], Z[idx, :]) for idx in eachindex(y)]
-
-pp = Figure()
-ax = Axis(pp[1, 1])
-for i in eachindex(y)
-    lines!(ax, post_pred_hg[i], label = "gIVBMA (hyper-g/n)", alpha = 1/2)
-    lines!(ax, post_pred_bma[i], label = "BMA (hyper-g/n)", alpha = 1/2, color = Makie.wong_colors()[2])
-end
-density!(ax, y, color = Makie.wong_colors()[3])
-pp
-
-
-# check variances
-pf = Figure()
-ax = Axis(pf[1,1])
-density!(ax, res_bma.σ .^ 2)
-density!(ax, map(x -> x[1,1], res_hg.Σ))
-density!(ax, map(x -> x[1,1], res_bric.Σ))
-pf
 
 # Create table summarising the results
 function create_latex_table(res_bric, res_hg, res_bma)
@@ -83,21 +62,21 @@ function create_latex_table(res_bric, res_hg, res_bma)
     rbw_bric = rbw(res_bric)
     rule_bric = post_mean_and_ci(rbw_bric[1])
     malfal_bric = post_mean_and_ci(rbw_bric[2])
-    Σ_12_bric = post_mean_and_ci(map(x -> x[1,2], res_bric.Σ))
-    Σ_13_bric = post_mean_and_ci(map(x -> x[1,3], res_bric.Σ))
+    Σ_12_bric = post_mean_and_ci(res_bric.Σ[1, 2, :])
+    Σ_13_bric = post_mean_and_ci(res_bric.Σ[1, 3, :])
 
     rbw_hg = rbw(res_hg)
     rule_hg = post_mean_and_ci(rbw_hg[1])
     malfal_hg = post_mean_and_ci(rbw_hg[2])
-    Σ_12_hg = post_mean_and_ci(map(x -> x[1,2], res_hg.Σ))
-    Σ_13_hg = post_mean_and_ci(map(x -> x[1,3], res_hg.Σ))
+    Σ_12_hg = post_mean_and_ci(res_hg.Σ[1, 2, :])
+    Σ_13_hg = post_mean_and_ci(res_hg.Σ[1, 3, :])
 
     rbwbma = rbw_bma(res_bma)
     rule_bma = post_mean_and_ci(rbwbma[1])
     malfal_bma = post_mean_and_ci(rbwbma[2])
 
     # PIP table
-    PIP_tab = [mean(res_bric.L; dims = 1)' mean(res_bric.M; dims = 1)' mean(res_hg.L; dims = 1)' mean(res_hg.M; dims = 1)' mean(res_bma.L; dims = 1)']
+    PIP_tab = [mean(res_bric.L; dims = 2) mean(res_bric.M; dims = 2) mean(res_hg.L; dims = 2) mean(res_hg.M; dims = 2) mean(res_bma.L; dims = 1)']
 
     # Start LaTeX table
     table = """
@@ -212,5 +191,6 @@ end
 methods = ["gIVBMA (BRIC)", "gIVBMA (hyper-g/n)", "IVBMA (KL)", "BMA (hyper-g/n)", "TSLS"]
 latex_table = create_latex_table(res, methods)
 println(latex_table)
+
 
 
