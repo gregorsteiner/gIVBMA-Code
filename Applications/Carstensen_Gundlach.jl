@@ -193,37 +193,4 @@ latex_table = create_latex_table(res, methods)
 println(latex_table)
 
 
-##### Endogeneity testing procedure #####
 
-# fit the model with rule being exogenous
-Random.seed!(42)
-res_hg_1_rule = givbma(y, X[:, 2], [X[:, 1] Z]; iter = iters, burn = Int(iters/5), dist = ["Gaussian", "BL"], g_prior = "hyper-g/n")
-res_bric_1_rule = givbma(y, X[:, 2], [X[:, 1] Z]; iter = iters, burn = Int(iters/5), dist = ["Gaussian", "BL"], g_prior = "BRIC")
-
-println(
-    "Bayes-factor for exogeneity of rule (hyper-g/n and BRIC respectively): " *
-    string(round.(exp(res_hg_1_rule.ML_outcome - res_hg.ML_outcome), digits = 3)) * ", " *
-    string(round.(exp(res_bric_1_rule.ML_outcome - res_bric.ML_outcome), digits = 3))
-)
-
-# fit the model with malfal being exogenous
-Random.seed!(42)
-res_hg_1_malfal = givbma(y, X[:, 1], [X[:, 2] Z]; iter = iters, burn = Int(iters/5), dist = ["Gaussian", "Gaussian"], g_prior = "hyper-g/n")
-res_bric_1_malfal = givbma(y, X[:, 1], [X[:, 2] Z]; iter = iters, burn = Int(iters/5), dist = ["Gaussian", "Gaussian"], g_prior = "BRIC")
-println(
-    "Bayes-factor for exogeneity of malfal (hyper-g/n and BRIC respectively): " *
-    string(round.(exp(res_hg_1_malfal.ML_outcome - res_hg.ML_outcome), digits = 3)) * ", " *
-    string(round.(exp(res_bric_1_malfal.ML_outcome - res_bric.ML_outcome), digits = 3))
-)
-
-
-# Now also test the model with only rule being exogenous against the model with no endogenous variables
-Random.seed!(42)
-res_hg_0 = givbma(y, X[:, Not(1:2)], [X Z]; iter = iters, burn = Int(iters/5), g_prior = "hyper-g/n")
-res_bric_0 = givbma(y, X[:, Not(1:2)], [X Z]; iter = iters, burn = Int(iters/5), g_prior = "BRIC")
-
-println(
-    "Bayes-factor for exogeneity of rule (hyper-g/n and BRIC respectively): " *
-    string(round.(exp(res_hg_0.ML_outcome - res_hg_1_malfal.ML_outcome), digits = 3)) * ", " *
-    string(round.(exp(res_bric_0.ML_outcome - res_bric_1_malfal.ML_outcome), digits = 3))
-)
