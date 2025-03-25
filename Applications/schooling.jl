@@ -380,44 +380,42 @@ end
 Random.seed!(42)
 res1 = kfold_cv(y_1, X_1, Z_1)
 res2 = kfold_cv(y_2, X_2, Z_2)
+bool = map(x -> x in d_par_educ.id, d_no_par_educ.id)
+res1_small = kfold_cv(y_1[bool], X_1[bool, :], Z_1[bool, :])
 
-function create_latex_table(res1, res2, methods)
-    # Calculate means for both result sets
+
+function create_latex_table(res1, res2, res3, methods)
+    # Calculate means for all three result sets
     means1 = round.(mean(res1, dims=1)[:], digits = 3)
     means2 = round.(mean(res2, dims=1)[:], digits = 3)
+    means3 = round.(mean(res3, dims=1)[:], digits = 3)
     
     # Find the indices of the lowest mean values for each column
-    min_index1 = argmin(means1)
-    min_index2 = argmin(means2)
+    min_indices1 = findall(x -> x == minimum(means1), means1)
+    min_indices2 = findall(x -> x == minimum(means2), means2)
+    min_indices3 = findall(x -> x == minimum(means3), means3)
     
     # Start building the LaTeX table with booktabs style
-    table = "\\begin{table}[h]\n\\centering\n\\begin{tabular}{lcc}\n"
+    table = "\\begin{table}[h]\n\\centering\n\\begin{tabular}{lccc}\n"
     table *= "\\toprule\n"
-    table *= "Method & Without parental education & With parental education \\\\\n"
+    table *= "Method & (a) & (b) & (c) \\\\\n"
     table *= "\\midrule\n"
     
     # Fill in the table rows
     for i in eachindex(methods)
-        mean_std1 = string(means1[i])
-        mean_std2 = string(means2[i])
+        mean_std1 = i in min_indices1 ? "\\textbf{" * string(means1[i]) * "}" : string(means1[i])
+        mean_std2 = i in min_indices2 ? "\\textbf{" * string(means2[i]) * "}" : string(means2[i])
+        mean_std3 = i in min_indices3 ? "\\textbf{" * string(means3[i]) * "}" : string(means3[i])
         
-        # Highlight the minimum values in each column
-        if i == min_index1
-            mean_std1 = "\\textbf{" * mean_std1 * "}"
-        end
-        if i == min_index2
-            mean_std2 = "\\textbf{" * mean_std2 * "}"
-        end
-        
-        table *= methods[i] * " & " * mean_std1 * " & " * mean_std2 * " \\\\\n"
+        table *= methods[i] * " & " * mean_std1 * " & " * mean_std2 * " & " * mean_std3 * " \\\\\n"
     end
     
     # Close the table
-    table *= "\\bottomrule\n\\end{tabular}\n\\caption{\\textbf{Returns to schooling:} The mean LPS calculated over each fold of the \\cite{card1995collegeproximity} data in a 5-fold cross-validation procedure.}\n\\label{tab:schooling_5_fold_LPS}\n\\end{table}"
+    table *= "\\bottomrule\n\\end{tabular}\n\\caption{\\textbf{Returns to schooling:} The mean LPS calculated over each fold of the \\cite{card1995collegeproximity} data (a) without parental education (\$n = 3,003\$), (b) with parental education (\$n = 2,215\$), and (c) without parental education only using the shared set of observations (\$n = 2,215\$) in a 5-fold cross-validation procedure.}\n\\label{tab:schooling_5_fold_LPS}\n\\end{table}"
     
     return table
 end
 
 meths = ["gIVBMA (hyper-g/n)", "gIVBMA (BRIC)", "BMA (hyper-g/n)", "IVBMA", "TSLS"]
-latex_table = create_latex_table(res1, res2, meths)
+latex_table = create_latex_table(res1, res2, res1_small, meths)
 println(latex_table)
