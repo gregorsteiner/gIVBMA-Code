@@ -1,4 +1,4 @@
-using CairoMakie, LaTeXStrings
+using CairoMakie, LaTeXStrings, Makie.Colors
 using Distributions, Random, LinearAlgebra, KernelDensity
 
 ##### This code creates a plot of the implied priors by the hyperprior on ν #####
@@ -38,40 +38,43 @@ data_exp21 = sample_σ11(1)
 data_exp31 = sample_σ11(5)
 
 # set up colour palette
-cols = Makie.wong_colors()
+cols = Makie.wong_colors()[[1:3; 5:6]]
 
-# Create the figure and axis
-fig = Figure()
+# Create the figure with increased width
+fig = Figure(size = (900, 500))  # Adjust width to make it wider
+
+strkwdth = 2 # line/strokewidth
 
 # First plot: Exponential priors
 ax1 = Axis(fig[1, 1], xlabel = L"\nu", ylabel = "Density")
-lines!(ax1, xx, y1, label = "Exponential(0.1)", color = cols[1])
-lines!(ax1, xx, y2, label = "Exponential(1)", color = cols[2])
-lines!(ax1, xx, y3, label = "Exponential(5)", color = cols[3])
+lines!(ax1, xx, y1, label = "Exponential(0.1)", color = cols[1], linestyle = :solid, linewidth = strkwdth)
+lines!(ax1, xx, y2, label = "Exponential(1)", color = cols[2], linestyle = :dash, linewidth = strkwdth)
+lines!(ax1, xx, y3, label = "Exponential(5)", color = cols[3], linestyle = :dot, linewidth = strkwdth)
 
 # Second plot: Line-only Density of σᵧₓ / σₓₓ
 ax2 = Axis(fig[1, 2], xlabel = L"\sigma_{yx} / \sigma_{xx}", ylabel = "Density")
-density!(ax2, data_exp12, label = "Exponential(0.1)", color = :transparent, strokecolor = cols[1], strokewidth = 1.5)
-density!(ax2, data_exp22, label = "Exponential(1)", color = :transparent, strokecolor = cols[2], strokewidth = 1.5)
-density!(ax2, data_exp32, label = "Exponential(5)", color = :transparent, strokecolor = cols[3], strokewidth = 1.5)
-density!(ax2, data_ν3, label = L"\nu = 3", color = :transparent, strokecolor = cols[5], strokewidth = 1.5, linestyle = :dash)
-density!(ax2, data_ν5, label = L"\nu = 5", color = :transparent, strokecolor = cols[6], strokewidth = 1.5, linestyle = :dash) 
+density!(ax2, data_exp12, label = "Exponential(0.1)", color = :transparent, strokecolor = cols[1], strokewidth = strkwdth, linestyle = :solid)
+density!(ax2, data_exp22, label = "Exponential(1)", color = :transparent, strokecolor = cols[2], strokewidth = strkwdth, linestyle = :dash)
+density!(ax2, data_exp32, label = "Exponential(5)", color = :transparent, strokecolor = cols[3], strokewidth = strkwdth, linestyle = :dot)
+density!(ax2, data_ν3, label = L"\nu = 3", color = :transparent, strokecolor = cols[4], strokewidth = strkwdth, linestyle = :dashdot)
+density!(ax2, data_ν5, label = L"\nu = 5", color = :transparent, strokecolor = cols[5], strokewidth = strkwdth, linestyle = :dashdotdot) 
 xlims!(ax2, -3, 3)
 
 # Third plot: Implied prior on \sigma_{y|x}
 ax3 = Axis(fig[1, 3], xlabel = L"\sigma_{y \mid x}", ylabel = "Density")
-density!(ax3, data_exp11, label = "Exponential(0.1)", color = :transparent, strokecolor = cols[1], strokewidth = 1.5)
-density!(ax3, data_exp21, label = "Exponential(1)", color = :transparent, strokecolor = cols[2], strokewidth = 1.5)
-density!(ax3, data_exp31, label = "Exponential(5)", color = :transparent, strokecolor = cols[3], strokewidth = 1.5)
-lines!(ax3, InverseGamma(3/2, 1/2), color = cols[5], label = L"\nu = 3", linestyle = :dash)
-lines!(ax3, InverseGamma(5/2, 1/2), color = cols[6], label = L"\nu = 5", linestyle = :dash)
+density!(ax3, data_exp11, label = "Exponential(0.1)", color = :transparent, strokecolor = cols[1], strokewidth = strkwdth, linestyle = :solid)
+density!(ax3, data_exp21, label = "Exponential(1)", color = :transparent, strokecolor = cols[2], strokewidth = strkwdth, linestyle = :dash)
+density!(ax3, data_exp31, label = "Exponential(5)", color = :transparent, strokecolor = cols[3], strokewidth = strkwdth, linestyle = :dot)
+lines!(ax3, InverseGamma(3/2, 1/2), color = cols[4], label = L"\nu = 3", linestyle = :dashdot, linewidth = strkwdth)
+lines!(ax3, InverseGamma(5/2, 1/2), color = cols[5], label = L"\nu = 5", linestyle = :dashdotdot, linewidth = strkwdth)
 xlims!(ax3, -1/4, 3)
 
 # Add a shared legend below the plots
 Legend(fig[2, 1:3], ax2, orientation = :horizontal)
 
 # Adjust layout
-fig[1, 1:2] = GridLayout(padding = (10, 10, 10, 40)) # Add space for the legend below
+fig[1, 1:3] = GridLayout(padding = (10, 10, 10, 40)) # Add space for the legend below
 
-# Save the figure
+# Save the figure with specified width and height
 save("Implied_prior_with_exponential.pdf", fig)
+
