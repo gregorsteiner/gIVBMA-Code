@@ -43,7 +43,7 @@ cols = Makie.wong_colors()[[1:3; 5:6]]
 # Create the figure with increased width
 fig = Figure(size = (900, 500))  # Adjust width to make it wider
 
-strkwdth = 2 # line/strokewidth
+strkwdth = 2.5 # line/strokewidth
 
 # First plot: Exponential priors
 ax1 = Axis(fig[1, 1], xlabel = L"\nu", ylabel = "Density")
@@ -67,7 +67,7 @@ density!(ax3, data_exp21, label = "Exponential(1)", color = :transparent, stroke
 density!(ax3, data_exp31, label = "Exponential(5)", color = :transparent, strokecolor = cols[3], strokewidth = strkwdth, linestyle = :dot)
 lines!(ax3, InverseGamma(3/2, 1/2), color = cols[4], label = L"\nu = 3", linestyle = :dashdot, linewidth = strkwdth)
 lines!(ax3, InverseGamma(5/2, 1/2), color = cols[5], label = L"\nu = 5", linestyle = :dashdotdot, linewidth = strkwdth)
-xlims!(ax3, -1/4, 3)
+xlims!(ax3, -0.1, 2.1)
 
 # Add a shared legend below the plots
 Legend(fig[2, 1:3], ax2, orientation = :horizontal)
