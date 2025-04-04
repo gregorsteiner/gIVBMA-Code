@@ -128,7 +128,7 @@ lines!(ax1, rbw(res_hg_1_small)[1], linewidth = wdth, color = cols[2], linestyle
 lines!(ax1, rbw_bma(res_bma_1_small)[1], linewidth = wdth, color = cols[3], linestyle = :dashdot, label = "BMA (hyper-g/n)")
 kde_ivbma_1 = compute_posterior_density(res_ivbma_1_small.τ_full[:, 1])
 lines!(ax1, kde_ivbma_1[1], kde_ivbma_1[2], linewidth = wdth, color = cols[4], linestyle = :dashdotdot, label = "IVBMA")
-lines!(ax1, [0.0, 0.0], [0.0, 18.0], color = Makie.wong_colors()[4], linestyle = :dashdotdot)
+lines!(ax1, [0.0, 0.0], [0.0, 18.0], color = Makie.wong_colors()[4], linewidth = wdth, linestyle = :dashdotdot)
 
 ax2 = Axis(fig[1, 2], xlabel = L"\sigma_{yx} / \sigma_{xx}")
 density!(ax2, res_bric_1_small.Σ[1, 2, :] ./ res_hg_1_small.Σ[2, 2, :], color = :transparent, strokecolor = cols[1], strokewidth = wdth)
