@@ -181,7 +181,7 @@ best_high_covg_x2 = res500[argmin(abs.(res500[:, 4] .- 0.95))[1], 4]
 best_high_lps = minimum(res500[:, 5])
 
 # Start building the LaTeX table as a string
-table = "\\begin{table}[h]\n\\centering\n"
+table = "\\begin{table}[H]\n\\centering\n"
 table *= "\\begin{tabular}{lccccc}\n"
 table *= "\\toprule\n"
 table *= "\\multicolumn{6}{c}{\$n=50\$} \\\\\n"

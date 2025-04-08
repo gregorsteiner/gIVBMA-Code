@@ -157,7 +157,7 @@ function make_stacked_multicolumn_table(res)
 
 
     # Start the LaTeX table
-    table_str = "\\begin{table}\n\\centering\n\\begin{tabular}{l*{8}{r}}\n\\toprule\n"
+    table_str = "\\begin{table}[H]\n\\centering\n\\begin{tabular}{l*{8}{r}}\n\\toprule\n"
     table_str *= " & \\multicolumn{8}{c}{\$n = 50\$} \\\\\n"
     table_str *= " & \\multicolumn{4}{c}{\$s = 3\$} & \\multicolumn{4}{c}{\$s = 6\$} \\\\\n"
     table_str *= "\\cmidrule(lr){2-5}\\cmidrule(lr){6-9}\n"
@@ -213,7 +213,7 @@ function make_stacked_multicolumn_table(res)
 
     # Finish the table
     table_str *= "\\bottomrule\n\\end{tabular}\n"
-    table_str *= "\\caption{Simulation results with s invalid instruments based on 100 simulated datasets. The best values in each column are printed in bold. The sisVIVE estimator does not provide any uncertainty quantification, so we do not report any coverage results.}\n"
+    table_str *= "\\caption{\\textbf{Invalid Instruments:} MAE, bias, coverage, and mean LPS on 100 simulated datasets with \$s\$ invalid instruments. The best values in each column are printed in bold. The sisVIVE estimator does not provide any uncertainty quantification, so we do not report any coverage results.}\n"
     table_str *= "\\label{tab:Kang_Sim}\n\\end{table}"
 
     return table_str

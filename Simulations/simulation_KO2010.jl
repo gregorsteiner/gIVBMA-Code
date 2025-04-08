@@ -182,7 +182,7 @@ function make_stacked_multicolumn_table(res)
     methods = ["BMA (hyper-g/n)", "gIVBMA (BRIC)", "gIVBMA (hyper-g/n)", "gIVBMA (2C)", "IVBMA (KL)", "OLS", "TSLS", "O-TSLS", "JIVE", "RJIVE", "MATSLS", "Post-LASSO"]
     
     # Start the LaTeX table
-    table_str = "\\begin{table}[h]\n\\footnotesize\n\\centering\n\\begin{tabular}{l*{8}{r}}\n\\toprule\n"
+    table_str = "\\begin{table}[H]\n\\centering\n\\begin{tabular}{l*{8}{r}}\n\\toprule\n"
     table_str *= " & \\multicolumn{8}{c}{\$n = 50\$} \\\\\n"
     table_str *= " & \\multicolumn{4}{c}{\$R^2_f = 0.01\$} & \\multicolumn{4}{c}{\$R^2_f = 0.1\$} \\\\\n"
     table_str *= "\\cmidrule(lr){2-5}\\cmidrule(lr){6-9}\n"
@@ -227,7 +227,7 @@ function make_stacked_multicolumn_table(res)
 
     # Finish the table
     table_str *= "\\bottomrule\n\\end{tabular}\n"
-    table_str *= "\\caption{\\textbf{Many Weak Instruments:} Simulation results with many weak instruments based on 100 simulated datasets. The best values in each column are printed in bold. Post-Lasso only returns estimates for \$\\tau\$, but not for the other coefficients, so we cannot compute the LPS. When no instrument is selected, no effect estimates are provided, therefore we do not consider those cases. The number of times no instruments were selected  in the first stage is (from top-left to bottom-right): " * join(PL_frequencies, ", ") * ".}\n"
+    table_str *= "\\caption{\\textbf{Many Weak Instruments:} MAE, bias, coverage, and mean LPS on 100 simulated datasets. The best values in each column are printed in bold. Post-Lasso only returns estimates for \$\\tau\$, but not for the other coefficients, so we cannot compute the LPS. When no instrument is selected, no effect estimates are provided, therefore we do not consider those cases. The number of times no instruments were selected  in the first stage is (from top-left to bottom-right): " * join(PL_frequencies, ", ") * ".}\n"
     table_str *= "\\label{tab:KO2010_Sim}\n\\end{table}"
 
     return table_str
