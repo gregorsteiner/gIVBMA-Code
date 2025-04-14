@@ -143,17 +143,17 @@ save("Posterior_Schooling_small.pdf", fig)
 # Check posterior of σ_{xx}
 fig = Figure()
 
-ax1 = Axis(fig[1, 1], ylabel = L"Posterior Density$$", title = L"gIVBMA (BRIC)$$")
+ax1 = Axis(fig[1, 1], ylabel = "Posterior Density", title = "gIVBMA (BRIC)")
 density!(ax1, res_bric_1.Σ[2, 2, :], label = L"No parent edu. ($n = 3{,}003$)")
 density!(ax1, res_bric_2.Σ[2, 2, :], label = L"With parent edu. ($n = 2{,}215$)")
 density!(ax1, res_bric_1_small.Σ[2, 2, :], label = L"No parent edu. ($n = 2{,}215$)")
 
-ax2 = Axis(fig[1, 2], ylabel = "", title = L"gIVBMA (hyper-$g/n$)")
+ax2 = Axis(fig[1, 2], ylabel = "", title = "gIVBMA (hyper-g/n)")
 density!(ax2, res_hg_1.Σ[2, 2, :], label = L"No parent edu. ($n = 3{,}003$)")
 density!(ax2, res_hg_2.Σ[2, 2, :], label = L"With parent edu. ($n = 2{,}215$)")
 density!(ax2, res_hg_1_small.Σ[2, 2, :], label = L"No parent edu. ($n = 2{,}215$)")
 
-ax3 = Axis(fig[1, 3], ylabel = "", title = L"IVBMA$$")
+ax3 = Axis(fig[1, 3], ylabel = "", title = "IVBMA")
 density!(ax3, res_ivbma_1.Σ[2, 2, :], label = L"No parent edu. ($n = 3{,}003$)")
 density!(ax3, res_ivbma_2.Σ[2, 2, :], label = L"With parent edu. ($n = 2{,}215$)")
 density!(ax3, res_ivbma_1_small.Σ[2, 2, :], label = L"No parent edu. ($n = 2{,}215$)")
