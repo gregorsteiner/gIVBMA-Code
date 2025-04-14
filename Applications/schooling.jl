@@ -140,6 +140,19 @@ save("Posterior_Schooling_small.pdf", fig)
 
 
 
+# Check posterior of σ_{xx}
+fig = Figure()
+ax = Axis(fig[1, 1], xlabel = L"\sigma_{xx}", ylabel = "Posterior Density")
+density!(ax, res_hg_1.Σ[2, 2, :], label = L"No parent edu. ($n = 3{,}003$)")
+density!(ax, res_hg_2.Σ[2, 2, :], label = L"With parent edu. ($n = 2{,}215$)")
+density!(ax, res_hg_1_small.Σ[2, 2, :], label = L"No parent edu. ($n = 2{,}215$)")
+
+Legend(fig[2, 1], ax, orientation = :horizontal, labelsize = 12)
+
+save("Schooling_treatment_variance.pdf", fig)
+
+
+
 # Create PIP table
 function create_pip_table(hg, bric, ivbma, bma)
     tab_hg = [mean(hg.L, dims = 2) mean(hg.M, dims = 2)]
