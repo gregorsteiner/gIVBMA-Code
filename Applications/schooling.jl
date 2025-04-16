@@ -141,7 +141,7 @@ save("Posterior_Schooling_small.pdf", fig)
 
 
 # Check posterior of σ_{xx}
-fig = Figure()
+fig = Figure(size = (700, 400))
 
 ax1 = Axis(fig[1, 1], ylabel = "Posterior Density", title = "gIVBMA (BRIC)")
 density!(ax1, res_bric_1.Σ[2, 2, :], label = L"No parent edu. ($n = 3{,}003$)", color = :transparent, strokecolor = cols[1], strokewidth = wdth)
