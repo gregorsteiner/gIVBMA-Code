@@ -3,7 +3,8 @@
 using Distributions, LinearAlgebra
 using BSON, ProgressBars
 
-using Pkg; Pkg.activate("../../gIVBMA")
+# the following line needs to be run when using the gIVBMA package for the first time
+# using Pkg; Pkg.add(url="https://github.com/gregorsteiner/gIVBMA.jl.git")
 using gIVBMA
 
 include("competing_methods.jl")
