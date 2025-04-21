@@ -1,4 +1,4 @@
-This repository contains the code to reproduce all the findings in "Bayesian Model Averaging in Causal Instrumental Variable Models", [arxiv:2504.13520](https://arxiv.org/abs/2504.13520)].
+This repository contains the code to reproduce all the findings in "Bayesian Model Averaging in Causal Instrumental Variable Models", [arxiv:2504.13520](https://arxiv.org/abs/2504.13520).
 
 The applications folder includes all the code to reproduce the empirical examples. In particular, `Carstensen_Gundlach.jl`, `schooling.jl`, and `birthweight.jl` contain the code for the geography or institutions, returns to schooling, and birthweight examples, respectively.
 The priors folder includes code to reproduce the plots illustrating the priors implied by the hyperprior on $\nu$.
