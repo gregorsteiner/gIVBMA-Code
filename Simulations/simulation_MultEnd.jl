@@ -243,7 +243,7 @@ function create_boxplots(X_1, Y_1, X_2, Y_2)
     n_categories = size(X_1, 2)
     positions = 1:n_categories
     
-    fig = Figure()
+    fig = Figure(size = (800, 400))
     
     # First row
     ax1 = Axis(fig[1, 1], title=titles[1], xticklabelsvisible=false, ylabel = L"n = 50")
