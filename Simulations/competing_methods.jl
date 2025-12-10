@@ -1,5 +1,7 @@
 
 using Distributions, LinearAlgebra, GLMNet, JuMP, RCall
+using Turing
+
 
 """
     This function implements a TSLS estimator to compare our approach to.
@@ -302,4 +304,42 @@ end
 
 # alternative method for invalid instruments
 ivbma_kl(y, X, Z, y_h, X_h, Z_h; s = 2000, b = 1000) = ivbma_kl(y, X, Matrix{Float64}(undef, length(y), 0), Z, y_h, X_h, Matrix{Float64}(undef, length(y_h), 0), Z_h; s = s, b = b)
+
+
+"""
+    A global-local shrinkage approach to achieve shrinkage in both equations.
+"""
+@model function HorseshoeBayesianIV(y, X, Z)
+    n, p = size(Z)
+    l = size(X, 2)
+
+    # Covariance prior
+    ν_transf ~ Exponential(1)
+    ν = ν_transf + (l+1)
+    Σ ~ InverseWishart(ν, Matrix{Float64}(I, l+1, l+1))
+
+    Σ_xx = Σ[2:end, 2:end]
+    Σ_yx = Σ[2:end, 1]
+    σ_y_x = Σ[1,1] - Σ_yx' * inv(Σ_xx) * Σ_yx
+
+    # Coefficient priors
+    α ~ Normal(0, 10)
+    τ ~ MvNormal(zeros(l), σ_y_x * inv(X'X))
+
+    Γ ~ MvNormal(zeros(l), 10 * I)
+
+    # Horseshoe
+    τ_global ~ truncated(Cauchy(0.0, 1.0); lower=0)
+    λ_or ~ filldist(truncated(Cauchy(0.0, 1.0); lower=0), p)
+    λ_tr ~ filldist(truncated(Cauchy(0.0, 1.0); lower=0), p)
+
+    β ~ MvNormal(zeros(p), I * λ_or.^2 * τ_global^2)
+    Δ_std ~ filldist(Normal(), p, l)
+    Δ = (λ_tr .* τ_global) .* Δ_std
+    #Δ ~ MatrixNormal(zeros(p, l), Matrix(Diagonal(λ_tr.^2 * τ_global^2)), Matrix(I, l, l))
+    
+    # likelihood
+    y ~ MvNormal(α .+ X * τ + Z * β + (X .- Γ' - Z * Δ) * inv(Σ_xx) * Σ_yx, σ_y_x * I)
+    X ~ MatrixNormal(Γ' .+ Z * Δ, Matrix(I, n, n), Σ_xx)
+end
 
