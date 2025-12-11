@@ -313,6 +313,10 @@ ivbma_kl(y, X, Z, y_h, X_h, Z_h; s = 2000, b = 1000) = ivbma_kl(y, X, Matrix{Flo
     n, p = size(Z)
     l = size(X, 2)
 
+    if l == 1
+        X = X[:, :]
+    end
+    
     # Covariance prior
     ν_transf ~ Exponential(1)
     ν = ν_transf + (l+1)
@@ -322,21 +326,20 @@ ivbma_kl(y, X, Z, y_h, X_h, Z_h; s = 2000, b = 1000) = ivbma_kl(y, X, Matrix{Flo
     Σ_yx = Σ[2:end, 1]
     σ_y_x = Σ[1,1] - Σ_yx' * inv(Σ_xx) * Σ_yx
 
-    # Coefficient priors
+    # Intercepts and treatment effect priors
     α ~ Normal(0, 10)
     τ ~ MvNormal(zeros(l), σ_y_x * inv(X'X))
-
     Γ ~ MvNormal(zeros(l), 10 * I)
 
     # Horseshoe
-    τ_global ~ truncated(Cauchy(0.0, 1.0); lower=0)
+    τ_or ~ truncated(Cauchy(0.0, 1.0); lower=0)
     λ_or ~ filldist(truncated(Cauchy(0.0, 1.0); lower=0), p)
+    τ_tr ~ truncated(Cauchy(0.0, 1.0); lower=0)
     λ_tr ~ filldist(truncated(Cauchy(0.0, 1.0); lower=0), p)
 
-    β ~ MvNormal(zeros(p), I * λ_or.^2 * τ_global^2)
+    β ~ MvNormal(zeros(p), I * λ_or.^2 * τ_or^2)
     Δ_std ~ filldist(Normal(), p, l)
-    Δ = (λ_tr .* τ_global) .* Δ_std
-    #Δ ~ MatrixNormal(zeros(p, l), Matrix(Diagonal(λ_tr.^2 * τ_global^2)), Matrix(I, l, l))
+    Δ = (λ_tr .* τ_tr) .* Δ_std
     
     # likelihood
     y ~ MvNormal(α .+ X * τ + Z * β + (X .- Γ' - Z * Δ) * inv(Σ_xx) * Σ_yx, σ_y_x * I)
