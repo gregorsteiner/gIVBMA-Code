@@ -307,29 +307,28 @@ ivbma_kl(y, X, Z, y_h, X_h, Z_h; s = 2000, b = 1000) = ivbma_kl(y, X, Matrix{Flo
 
 
 """
-    A global-local shrinkage approach to achieve shrinkage in both equations.
+    A global-local shrinkage approach to achieve shrinkage in both equations. Currently only works for a single endogenous variable (l=1).
 """
 @model function HorseshoeBayesianIV(y, X, Z)
     n, p = size(Z)
-    l = size(X, 2)
 
-    if l == 1
-        X = X[:, :]
-    end
-    
     # Covariance prior
-    ν_transf ~ Exponential(1)
-    ν = ν_transf + (l+1)
-    Σ ~ InverseWishart(ν, Matrix{Float64}(I, l+1, l+1))
+    #ν_transf ~ Exponential(1)
+    #ν = ν_transf + (l+1)
+    #ν = 3
+    #Σ ~ InverseWishart(ν, Matrix{Float64}(I, 2, 2))
+    Σ_xx ~ InverseGamma(1, 1)
+    σ_y_x ~ InverseGamma(3, 3)
+    a ~ Normal(0, 1)
+    A = [1.0 a; 0.0 1.0]
+    Σ = A * [σ_y_x 0.0; 0.0 Σ_xx] * A'
 
-    Σ_xx = Σ[2:end, 2:end]
-    Σ_yx = Σ[2:end, 1]
-    σ_y_x = Σ[1,1] - Σ_yx' * inv(Σ_xx) * Σ_yx
 
     # Intercepts and treatment effect priors
     α ~ Normal(0, 10)
-    τ ~ MvNormal(zeros(l), σ_y_x * inv(X'X))
-    Γ ~ MvNormal(zeros(l), 10 * I)
+    τ ~ Normal(0, 10)
+    
+    γ ~ Normal(0, 10)
 
     # Horseshoe
     τ_or ~ truncated(Cauchy(0.0, 1.0); lower=0)
@@ -338,11 +337,10 @@ ivbma_kl(y, X, Z, y_h, X_h, Z_h; s = 2000, b = 1000) = ivbma_kl(y, X, Matrix{Flo
     λ_tr ~ filldist(truncated(Cauchy(0.0, 1.0); lower=0), p)
 
     β ~ MvNormal(zeros(p), I * λ_or.^2 * τ_or^2)
-    Δ_std ~ filldist(Normal(), p, l)
-    Δ = (λ_tr .* τ_tr) .* Δ_std
-    
+    δ ~ MvNormal(zeros(p), I * λ_tr.^2 * τ_tr^2)
+
     # likelihood
-    y ~ MvNormal(α .+ X * τ + Z * β + (X .- Γ' - Z * Δ) * inv(Σ_xx) * Σ_yx, σ_y_x * I)
-    X ~ MatrixNormal(Γ' .+ Z * Δ, Matrix(I, n, n), Σ_xx)
+    y ~ MvNormal(α .+ X * τ + Z * β + (X .- γ - Z * δ) * a', σ_y_x * I)
+    X ~ MvNormal(γ .+ Z * δ, Σ_xx * I)
 end
 
