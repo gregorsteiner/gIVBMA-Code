@@ -38,20 +38,41 @@ function instrument_prior(n_z, p)
     return total / (p+1)
 end
 
+function instrument_prior_kl(n_z, p)
+    total = 0.0
+    Γ(x) = SpecialFunctions.gamma(x)
+    for p_i in 0:p
+        for k in 0:p_i
+            if n_z <= (p - p_i)
+                total += binomial(p_i, p_i - k) * binomial(p - p_i, n_z)
+            end
+        end
+    end
+    return total / (p+1)
+end
+
+
 
 # Illustrate in plot
 ps = [5, 10, 15, 20]
-fig = Figure(size = (1000, 800))
+fig = Figure(size = (900, 500))
 
 for (i, p) in enumerate(ps)
     row = (i - 1) ÷ 2 + 1  # 1,1,2,2
     col = (i - 1) % 2 + 1  # 1,2,1,2
     prob = [instrument_prior(n_z, p) for n_z in 0:p]
+    prob_kl = [instrument_prior_kl(n_z, p) for n_z in 0:p]
+    prob_kl[1] = 0.0
+    prob_kl /= sum(prob_kl)
     ax = Axis(fig[row, col], xlabel = "Number of valid instruments", 
-              ylabel = "Prior Probability", title = "p = $p",
+              ylabel = "Prior Probability", title = "",
               xgridvisible = false, ygridvisible = false)
     #hidespines!(ax, :t, :r)
-    barplot!(ax, 0:p, prob, alpha = 0.7, color = :steelblue4)
+    barplot!(ax, 0:p, prob, alpha = 0.8, label = "gIVBMA")
+    barplot!(ax, 0:p, prob_kl, alpha = 0.6, label = "IVBMA")
+    if i == length(ps)
+        Legend(fig[3, 1:2], ax, orientation = :horizontal)
+    end
 end
 
 display(fig)
