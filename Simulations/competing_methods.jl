@@ -1,5 +1,5 @@
 
-using Distributions, LinearAlgebra, GLMNet, JuMP, RCall
+using Distributions, LinearAlgebra, GLMNet, JuMP, RCall, Turing
 
 """
     This function implements a TSLS estimator to compare our approach to.
@@ -302,4 +302,72 @@ end
 
 # alternative method for invalid instruments
 ivbma_kl(y, X, Z, y_h, X_h, Z_h; s = 2000, b = 1000) = ivbma_kl(y, X, Matrix{Float64}(undef, length(y), 0), Z, y_h, X_h, Matrix{Float64}(undef, length(y_h), 0), Z_h; s = s, b = b)
+
+
+"""
+    A global-local shrinkage approach to achieve shrinkage in both equations. Currently only works for a single endogenous variable (l=1).
+"""
+@model function HorseshoeBayesianIV(y, x, Z)
+    n, p = size(Z)
+
+    # Covariance prior
+    ν_transf ~ Exponential(1)
+    ν = ν_transf + 2
+    Σ_xx ~ InverseGamma((ν-1)/2, 1/2)
+    σ_y_x ~ InverseGamma(ν/2, 1/2)
+    a ~ Normal(0, sqrt(σ_y_x))
+    A = [1.0 a; 0.0 1.0]
+    Σ = A * [σ_y_x 0.0; 0.0 Σ_xx] * A'
+
+
+    # Intercepts and treatment effect priors
+    α ~ Normal(0, 10)
+    τ ~ Normal(0, 10)
+    γ ~ Normal(0, 10)
+
+    # Horseshoe
+    halfcauchy  = truncated(Cauchy(0, 1); lower=0)
+    τ_or ~ halfcauchy
+    λ_or ~ filldist(halfcauchy, p)
+    τ_tr ~ halfcauchy
+    λ_tr ~ filldist(halfcauchy, p)
+
+    β_inner ~ MvNormal(zeros(p), I)
+    β = β_inner .* λ_or * τ_or
+    Turing.@addlogprob! -sum(log.(λ_or * τ_or))
+
+    δ_inner ~ MvNormal(zeros(p), I)
+    δ = δ_inner .* λ_tr * τ_tr
+    Turing.@addlogprob! -sum(log.(λ_tr * τ_tr))
+
+    # likelihood
+    y ~ MvNormal(α .+ x * τ + Z * β + (x .- γ - Z * δ) * (Σ[1, 2] / Σ[2, 2]), (Σ[1, 1] - Σ[1, 2]^2/Σ[2, 2]) * I)
+    x ~ MvNormal(γ .+ Z * δ, Σ[2, 2] * I)
+end
+
+function hsiv(y, x, Z, y_h, x_h, Z_h; iters = 1000)
+    # fit model
+    model = HorseshoeBayesianIV(y, x, Z)
+    chn = sample(model, NUTS(), iters)
+
+    # LPS calculation
+    n_h = length(y_h)
+    scores = Matrix{Float64}(undef, n_h, iters)
+    for i in 1:iters
+        σ_y_x = Array(chn[:σ_y_x])[i, 1]
+        β = Array(group(chn, "β_inner"))[i, :] .* Array(group(chn, "λ_or"))[i, :] * Array(chn[:τ_or])[i, 1]
+        δ = Array(group(chn, "δ_inner"))[i, :] .* Array(group(chn, "λ_tr"))[i, :] * Array(chn[:τ_tr])[i, 1]
+        H = x_h .- Array(chn[:γ])[i, 1] - Z_h * δ
+        mean_q = Array(chn[:α])[i, 1] .+ x_h * Array(chn[:τ])[i, 1] + Z_h * β + H * Array(chn[:a])[i, 1]
+        scores[:, i] = [pdf(Normal(mean_q[j], sqrt(σ_y_x)), y_h[j]) for j in eachindex(y_h)]
+    end
+    scores_avg = mean(scores; dims = 2)
+    lps = -mean(log.(scores_avg))
+
+    return (
+        τ = mean(chn[:τ]),
+        CI = quantile(chn[:τ], [0.025, 0.975]),
+        lps = lps
+    )
+end
 
