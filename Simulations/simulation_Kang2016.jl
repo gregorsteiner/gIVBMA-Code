@@ -157,7 +157,7 @@ CairoMakie.boxplot!(
     ax2, repeat(1:9, inner = m), vec(res50[2].PP_N_Z)
 )
 
-fig
+save("SimulationKang2016_InstrumentPosterior.pdf", fig)
 
 
 
