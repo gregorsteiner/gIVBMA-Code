@@ -348,7 +348,7 @@ end
 function hsiv(y, x, Z, y_h, x_h, Z_h; iters = 1000)
     # fit model
     model = HorseshoeBayesianIV(y, x, Z)
-    chn = sample(model, NUTS(), iters)
+    chn = sample(model, NUTS(), iters; check_model=false, progress=false)
 
     # LPS calculation
     n_h = length(y_h)

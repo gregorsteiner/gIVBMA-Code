@@ -5,6 +5,7 @@ using BSON, ProgressBars
 
 include("bma.jl")
 include("competing_methods.jl")
+include("aux_functions.jl")
 
 # the following line needs to be run when using the gIVBMA package for the first time
 # using Pkg; Pkg.add(url="https://github.com/gregorsteiner/gIVBMA.jl.git")
@@ -28,19 +29,10 @@ function gen_data_Kang2016(n, τ, p, s, c)
     return (y=y, x=x, Z=Z)
 end
 
-function givbma_flex(y, x, Z, y_h, x_h, Z_h; g_prior)
-    res = givbma(y, x, Z; g_prior = g_prior, iter = 1200, burn = 200)
-    lps_int = lps(res, y_h, x_h, Z_h)
-    return (
-        τ = mean(rbw(res)[1]),
-        CI = quantile(rbw(res)[1], [0.025, 0.975]),
-        lps = lps_int
-    )
-end
 
-function givbma_fix(y, x, Z, W, y_h, x_h, Z_h, W_h; g_prior = "hyper-g/n", two_comp = false)
-    res = givbma(y, x, Z, W; g_prior = g_prior, two_comp = two_comp, iter = 1200, burn = 200)
-    lps_int = lps(res, y_h, x_h, Z_h, W_h)
+function givbma_flex(y, x, Z, y_h, x_h, Z_h; g_prior, cov_prior, ω = 1.0)
+    res = givbma(y, x, Z; g_prior = g_prior, cov_prior = cov_prior, ω_a = ω, iter = 1200, burn = 200)
+    lps_int = lps(res, y_h, x_h, Z_h)
     return (
         τ = mean(rbw(res)[1]),
         CI = quantile(rbw(res)[1], [0.025, 0.975]),
@@ -59,32 +51,54 @@ function bma_res(y, X, Z, y_h, X_h, Z_h; g_prior = "hyper-g/n")
 end
 
 function sim_func(m, n; τ = 0.1, p = 10, s = 2, c = 0.5)
-    meths = ["BMA (hyper-g/n)", "gIVBMA (BRIC)", "gIVBMA (hyper-g/n)", "O-gIVBMA (hyper-g/n)", "O-gIVBMA (2C)", "IVBMA (KL)", "OLS", "TSLS", "O-TSLS", "sisVIVE"]
+    #meths = ["BMA (hyper-g/n)", "gIVBMA (BRIC)", "gIVBMA (hyper-g/n)", "gIVBMA (BRIC, ω_a = 1)", "gIVBMA (hyper-g/n, ω_a = 1)", "IVBMA (KL)", "OLS", "TSLS", "O-TSLS", "sisVIVE"]
+    meths = [
+        "BMA (hyper-g/n)", "gIVBMA (BRIC)", "gIVBMA (hyper-g/n)", "gIVBMA (BRIC, ω_a = 0.1)", "gIVBMA (hyper-g/n, ω_a = 0.1)", 
+        "gIVBMA (BRIC, ω_a = 1)", "gIVBMA (hyper-g/n, ω_a = 1)", "gIVBMA (BRIC, ω_a = 10)", "gIVBMA (hyper-g/n, ω_a = 10)",
+        "BayesHS", "TSLS", "O-TSLS", "IVBMA", "sisVIVE"
+        ]
+
 
     tau_store = Matrix(undef, m, length(meths))
     times_covered = zeros(length(meths))
     lps_store = Matrix(undef, m, length(meths))
 
-    for i in ProgressBar(1:m)
+    idx_switch = findfirst(==("IVBMA"), meths) - 1
+
+    Threads.@threads for i in 1:m
+    #for i in 1:m
         d = gen_data_Kang2016(n, τ, p, s, c)
         d_h = gen_data_Kang2016(Int(n/5), τ, p, s, c)
 
         res = [
             bma_res(d.y, d.x, d.Z, d_h.y, d_h.x, d_h.Z; g_prior = "hyper-g/n"),
-            givbma_flex(d.y, d.x, d.Z, d_h.y, d_h.x, d_h.Z; g_prior = "BRIC"),
-            givbma_flex(d.y, d.x, d.Z, d_h.y, d_h.x, d_h.Z; g_prior = "hyper-g/n"),
-            givbma_fix(d.y, d.x, d.Z[:, (s+1):p], d.Z[:, 1:s], d_h.y, d_h.x, d_h.Z[:, (s+1):p], d_h.Z[:, 1:s]; g_prior = "hyper-g/n"),
-            givbma_fix(d.y, d.x, d.Z[:, (s+1):p], d.Z[:, 1:s], d_h.y, d_h.x, d_h.Z[:, (s+1):p], d_h.Z[:, 1:s]; two_comp = true),
-            ivbma_kl(d.y, d.x, d.Z, d_h.y, d_h.x, d_h.Z),
-            ols(d.y, d.x, d.Z, d_h.y, d_h.x, d_h.Z),
+            givbma_flex(d.y, d.x, d.Z, d_h.y, d_h.x, d_h.Z; g_prior = "BRIC", cov_prior = "IW"),
+            givbma_flex(d.y, d.x, d.Z, d_h.y, d_h.x, d_h.Z; g_prior = "hyper-g/n", cov_prior = "IW"),
+            givbma_flex(d.y, d.x, d.Z, d_h.y, d_h.x, d_h.Z; g_prior = "BRIC", cov_prior = "Cholesky", ω = 0.1),
+            givbma_flex(d.y, d.x, d.Z, d_h.y, d_h.x, d_h.Z; g_prior = "hyper-g/n", cov_prior = "Cholesky", ω = 0.1),
+            givbma_flex(d.y, d.x, d.Z, d_h.y, d_h.x, d_h.Z; g_prior = "BRIC", cov_prior = "Cholesky", ω = 1.0),
+            givbma_flex(d.y, d.x, d.Z, d_h.y, d_h.x, d_h.Z; g_prior = "hyper-g/n", cov_prior = "Cholesky", ω = 1.0),
+            givbma_flex(d.y, d.x, d.Z, d_h.y, d_h.x, d_h.Z; g_prior = "BRIC", cov_prior = "Cholesky", ω = 10.0),
+            givbma_flex(d.y, d.x, d.Z, d_h.y, d_h.x, d_h.Z; g_prior = "hyper-g/n", cov_prior = "Cholesky", ω = 10.0),
+            hsiv(d.y, d.x, d.Z, d_h.y, d_h.x, d_h.Z),
             tsls(d.y, d.x, d.Z, d_h.y, d_h.x, d_h.Z),
             tsls(d.y, d.x, d.Z[:, (s+1):p], d.Z[:, 1:s], d_h.y, d_h.x, d_h.Z[:, 1:s]),
-            sisVIVE(d.y, d.x, d.Z, d_h.y, d_h.x, d_h.Z)
         ]
 
-        tau_store[i, :] = map(x -> x.τ, res)
-        times_covered += map(x -> (x.CI[1] < τ < x.CI[2]), res)
-        lps_store[i, :] = map(x -> x.lps, res)
+        tau_store[i, 1:idx_switch] = map(x -> x.τ, res)
+        times_covered[1:idx_switch] += map(x -> (x.CI[1] < τ < x.CI[2]), res)
+        lps_store[i, 1:idx_switch] = map(x -> x.lps, res)
+    end
+
+    # separate loop for all methods that are not multithread compatible
+    for i in 1:m
+        d = gen_data_Kang2016(n, τ, p, s, c)
+        d_h = gen_data_Kang2016(Int(n/5), τ, p, s, c)
+
+        res = [ivbma_kl(d.y, d.x, d.Z, d_h.y, d_h.x, d_h.Z), sisVIVE(d.y, d.x, d.Z, d_h.y, d_h.x, d_h.Z)]
+        tau_store[i, (idx_switch+1):end] = map(x -> x.τ, res)
+        times_covered[(idx_switch+1):end] += map(x -> (x.CI[1] < τ < x.CI[2]), res)
+        lps_store[i, (idx_switch+1):end] = map(x -> x.lps, res)
     end
 
     mae = mapslices(x -> median(abs.(x .- τ)), tau_store, dims = 1)
@@ -99,6 +113,8 @@ end
 """
 m = 100
 ss = [3, 6]
+
+res = sim_func(5, 50; s = 3)
 
 res50 = map(s -> sim_func(m, 50; s = s), ss)
 res500 = map(s -> sim_func(m, 500; s = s), ss)
