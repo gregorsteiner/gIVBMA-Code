@@ -15,8 +15,7 @@ end
     Extract a posterior sample of the number of implied instruments from a posterior sample of the models.
     Currently only works for the fully flexible case, where all instruments can be included in both models.
 """
-function extract_instruments(res)
-    L, M = (res.L, res.M)
+function extract_instruments(L, M)
     iters = size(L, 2)
     N_Z = Vector{Int64}(undef, iters)
     for i in 1:iters

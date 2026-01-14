@@ -33,10 +33,12 @@ end
 function givbma_flex(y, x, Z, y_h, x_h, Z_h; g_prior, cov_prior, ω = 1.0)
     res = givbma(y, x, Z; g_prior = g_prior, cov_prior = cov_prior, ω_a = ω, iter = 1200, burn = 200)
     lps_int = lps(res, y_h, x_h, Z_h)
+    N_Z = extract_instruments(res.L, res.M)
     return (
         τ = mean(rbw(res)[1]),
         CI = quantile(rbw(res)[1], [0.025, 0.975]),
-        lps = lps_int
+        lps = lps_int,
+        N_Z = N_Z
     )
 end
 
@@ -55,13 +57,15 @@ function sim_func(m, n; τ = 0.1, p = 10, s = 2, c = 0.5)
     meths = [
         "BMA (hyper-g/n)", "gIVBMA (BRIC)", "gIVBMA (hyper-g/n)", "gIVBMA (BRIC, ω_a = 0.1)", "gIVBMA (hyper-g/n, ω_a = 0.1)", 
         "gIVBMA (BRIC, ω_a = 1)", "gIVBMA (hyper-g/n, ω_a = 1)", "gIVBMA (BRIC, ω_a = 10)", "gIVBMA (hyper-g/n, ω_a = 10)",
-        "BayesHS", "TSLS", "O-TSLS", "IVBMA", "sisVIVE"
+        #"BayesHS",
+        "TSLS", "O-TSLS", "IVBMA", "sisVIVE"
         ]
 
 
     tau_store = Matrix(undef, m, length(meths))
     times_covered = zeros(length(meths))
     lps_store = Matrix(undef, m, length(meths))
+    instruments =  Matrix(undef, m, 8 + 1) # We only need this for the gIVBMA variants and for IVBMA
 
     idx_switch = findfirst(==("IVBMA"), meths) - 1
 
@@ -80,7 +84,7 @@ function sim_func(m, n; τ = 0.1, p = 10, s = 2, c = 0.5)
             givbma_flex(d.y, d.x, d.Z, d_h.y, d_h.x, d_h.Z; g_prior = "hyper-g/n", cov_prior = "Cholesky", ω = 1.0),
             givbma_flex(d.y, d.x, d.Z, d_h.y, d_h.x, d_h.Z; g_prior = "BRIC", cov_prior = "Cholesky", ω = 10.0),
             givbma_flex(d.y, d.x, d.Z, d_h.y, d_h.x, d_h.Z; g_prior = "hyper-g/n", cov_prior = "Cholesky", ω = 10.0),
-            hsiv(d.y, d.x, d.Z, d_h.y, d_h.x, d_h.Z),
+            #hsiv(d.y, d.x, d.Z, d_h.y, d_h.x, d_h.Z),
             tsls(d.y, d.x, d.Z, d_h.y, d_h.x, d_h.Z),
             tsls(d.y, d.x, d.Z[:, (s+1):p], d.Z[:, 1:s], d_h.y, d_h.x, d_h.Z[:, 1:s]),
         ]
@@ -88,6 +92,7 @@ function sim_func(m, n; τ = 0.1, p = 10, s = 2, c = 0.5)
         tau_store[i, 1:idx_switch] = map(x -> x.τ, res)
         times_covered[1:idx_switch] += map(x -> (x.CI[1] < τ < x.CI[2]), res)
         lps_store[i, 1:idx_switch] = map(x -> x.lps, res)
+        instruments[i, 1:(end-1)] = map(x -> mean(x.N_Z .== p-s), res[2:9])
     end
 
     # separate loop for all methods that are not multithread compatible
@@ -99,13 +104,14 @@ function sim_func(m, n; τ = 0.1, p = 10, s = 2, c = 0.5)
         tau_store[i, (idx_switch+1):end] = map(x -> x.τ, res)
         times_covered[(idx_switch+1):end] += map(x -> (x.CI[1] < τ < x.CI[2]), res)
         lps_store[i, (idx_switch+1):end] = map(x -> x.lps, res)
+        instruments[i, end] = mean(res[1].N_Z .== p-s)
     end
 
     mae = mapslices(x -> median(abs.(x .- τ)), tau_store, dims = 1)
     bias = mapslices(x -> median(x) - τ, tau_store, dims = 1)
     lps = mean(lps_store, dims = 1)
 
-    return (MAE = mae, Bias = bias, Coverage = times_covered ./ m, LPS = lps)
+    return (MAE = mae, Bias = bias, Coverage = times_covered ./ m, LPS = lps, PP_N_Z = instruments)
 end
 
 """
@@ -114,12 +120,46 @@ end
 m = 100
 ss = [3, 6]
 
-res = sim_func(5, 50; s = 3)
 
 res50 = map(s -> sim_func(m, 50; s = s), ss)
 res500 = map(s -> sim_func(m, 500; s = s), ss)
 
 bson("SimResKang2016.bson", Dict(:n50 => res50, :n500 => res500))
+
+"""
+    Visualise instrument selection performance.
+"""
+
+
+mean(res50[2].PP_N_Z, dims = 1)
+
+using CairoMakie, LaTeXStrings
+
+labels = [L"BRIC, IW$$", L"hyper-$g/n$, IW", L"BRIC, $ω_a = 0.1$", L"hyper-$g/n$, $ω_a = 0.1$", L"BRIC, $ω_a = 1$", 
+          L"hyper-$g/n$, $ω_a = 1$", L"BRIC, $ω_a = 10$", L"hyper-$g/n$, $ω_a = 10$", L"IVBMA$$"]
+
+fig = Figure()  # Adjust size as needed
+ax1 = Axis(
+    fig[1, 1], xticks = (1:9, labels),
+    xticklabelrotation = pi/4,
+    ylabel = L"Posterior Probability of $N_Z = 10-s$",
+    title = L"s=3,n=50"
+)
+CairoMakie.boxplot!(
+    ax1, repeat(1:9, inner = m), vec(res50[1].PP_N_Z)
+)
+ax2 = Axis(
+    fig[1, 2], xticks = (1:9, labels),
+    xticklabelrotation = pi/4,
+    title = L"s = 6, n = 50"
+)
+CairoMakie.boxplot!(
+    ax2, repeat(1:9, inner = m), vec(res50[2].PP_N_Z)
+)
+
+fig
+
+
 
 """
     Create Latex table

@@ -1,6 +1,8 @@
 
 using Distributions, LinearAlgebra, GLMNet, JuMP, RCall, Turing
 
+include("aux_functions.jl")
+
 """
     This function implements a TSLS estimator to compare our approach to.
 """
@@ -239,7 +241,8 @@ function ivbma_kl(y, X, Z, W, y_h, X_h, Z_h, W_h; s = 2000, b = 1000, target_M =
     source("ivbma.R")
     max_attempts <- 5
     attempt <- 1
-    # It sometimes happens that the ivbma code fails because of a singular matrix (this is usually within the Bartlett decomposition). We just retry it a few times (this rarely happens so should not affect the results too much)
+    # It sometimes happens that the ivbma code fails because of a singular matrix (this is usually within the Bartlett decomposition).
+    # We just retry it a few times (this rarely happens so should not affect the results too much)
     while(attempt <= max_attempts) {
         tryCatch({
             res <- ivbma(y, X, Z, cbind(rep(1, nrow(W)), W), s = s, b = b, odens = s-b, print.every = 1e5)
@@ -271,7 +274,7 @@ function ivbma_kl(y, X, Z, W, y_h, X_h, Z_h, W_h; s = 2000, b = 1000, target_M =
         scores[:, i] = [pdf(Normal(mean_y[j], sqrt(σ_y_x)), y_h[j]) for j in eachindex(y_h)]
     end
     scores_avg = mean(scores; dims = 2)[:, 1]
-    scores_avg = ifelse.(scores_avg .== 0, 1e-300, scores_avg) # if any of the scores is numericaly zero, we set it to 1e-300 such that its log is not -Inf
+    scores_avg = ifelse.(scores_avg .== 0, 1e-300, scores_avg) # if any of the scores is numerically zero, we set it to 1e-300 such that its log is not -Inf
     lps = -mean(log.(scores_avg))
 
     # compute posterior probability of true treatment model (this only matters for the simulation with multiple endogenous variables; we do not use this in the other scenarios)
@@ -285,6 +288,12 @@ function ivbma_kl(y, X, Z, W, y_h, X_h, Z_h, W_h; s = 2000, b = 1000, target_M =
     # compute mean model size (if l>1 we average the model sizes for the different endogenous variables)
     M_size_bar = mean(sum(M, dims = 1), dims = 3)[1, :, 1]
 
+    # Extract the number of instruments 
+    # In L, we drop the first l+1 variables (treatments + intercept)
+    # In M, we drop the first variable (intercept)
+    # We select M for the first variable as we only use this for l = 1
+    N_Z = extract_instruments(res[:L]'[(l+2):(end), :], res[:M][2:(end), 1, :])
+
     return (
         τ = l == 1 ? mean(τ) : mean(τ, dims = 1)[1, :],
         CI = l == 1 ? quantile(τ, [0.025, 0.975]) : [quantile(τ[:, i], [0.025, 0.975]) for i in axes(τ, 2)],
@@ -296,7 +305,8 @@ function ivbma_kl(y, X, Z, W, y_h, X_h, Z_h, W_h; s = 2000, b = 1000, target_M =
         M_size_bar = M_size_bar,
         L_bar = res[:L_bar],
         τ_full = res[:rho][:, 1:l],
-        Σ = Σ
+        Σ = Σ,
+        N_Z = N_Z
     )
 end
 
