@@ -30,7 +30,7 @@ function gen_data_Kang2016(n, τ, p, s, c)
 end
 
 
-function givbma_flex(y, x, Z, y_h, x_h, Z_h; g_prior, cov_prior, ω = 1.0)
+function givbma_flex(y, x, Z, y_h, x_h, Z_h; g_prior = "BRIC", cov_prior = "IW", ω = 1.0)
     res = givbma(y, x, Z; g_prior = g_prior, cov_prior = cov_prior, ω_a = ω, iter = 1200, burn = 200)
     lps_int = lps(res, y_h, x_h, Z_h)
     N_Z = extract_instruments(res.L, res.M)
@@ -65,7 +65,7 @@ function sim_func(m, n; τ = 0.1, p = 10, s = 2, c = 0.5)
     tau_store = Matrix(undef, m, length(meths))
     times_covered = zeros(length(meths))
     lps_store = Matrix(undef, m, length(meths))
-    instruments =  Matrix(undef, m, 8 + 1) # We only need this for the gIVBMA variants and for IVBMA
+    instruments =  Array{Float64}(undef, 4, 8 + 1, m) # We only need this for the gIVBMA variants and for IVBMA
 
     idx_switch = findfirst(==("IVBMA"), meths) - 1
 
@@ -92,7 +92,7 @@ function sim_func(m, n; τ = 0.1, p = 10, s = 2, c = 0.5)
         tau_store[i, 1:idx_switch] = map(x -> x.τ, res)
         times_covered[1:idx_switch] += map(x -> (x.CI[1] < τ < x.CI[2]), res)
         lps_store[i, 1:idx_switch] = map(x -> x.lps, res)
-        instruments[i, 1:(end-1)] = map(x -> mean(x.N_Z .== p-s), res[2:9])
+        instruments[:, 1:(end-1), i] = reduce(hcat, map(x -> instrument_probabilities(x.N_Z, p, s), res[2:9]))
     end
 
     # separate loop for all methods that are not multithread compatible
@@ -104,14 +104,15 @@ function sim_func(m, n; τ = 0.1, p = 10, s = 2, c = 0.5)
         tau_store[i, (idx_switch+1):end] = map(x -> x.τ, res)
         times_covered[(idx_switch+1):end] += map(x -> (x.CI[1] < τ < x.CI[2]), res)
         lps_store[i, (idx_switch+1):end] = map(x -> x.lps, res)
-        instruments[i, end] = mean(res[1].N_Z .== p-s)
+        instruments[:, end, i] = instrument_probabilities(res[1].N_Z, p, s)
     end
 
     mae = mapslices(x -> median(abs.(x .- τ)), tau_store, dims = 1)
     bias = mapslices(x -> median(x) - τ, tau_store, dims = 1)
     lps = mean(lps_store, dims = 1)
+    pp_instruments = mean(instruments; dims = 3)[:, :, 1]
 
-    return (MAE = mae, Bias = bias, Coverage = times_covered ./ m, LPS = lps, PP_N_Z = instruments)
+    return (MAE = mae, Bias = bias, Coverage = times_covered ./ m, LPS = lps, PP_N_Z = pp_instruments)
 end
 
 """
@@ -120,18 +121,22 @@ end
 m = 100
 ss = [3, 6]
 
-
 res50 = map(s -> sim_func(m, 50; s = s), ss)
 res500 = map(s -> sim_func(m, 500; s = s), ss)
+
 
 bson("SimResKang2016.bson", Dict(:n50 => res50, :n500 => res500))
 
 """
     Visualise instrument selection performance.
 """
+d = gen_data_Kang2016(50, 0.1, 10, 3, 1/2)
 
+model = HorseshoeBayesianIV(d.y, d.x, d.Z)
+chn = sample(model, NUTS(), 500; num_warmup = 100)
 
-mean(res50[2].PP_N_Z, dims = 1)
+plot(chn[:τ])
+
 
 using CairoMakie, LaTeXStrings
 

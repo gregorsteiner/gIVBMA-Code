@@ -23,3 +23,26 @@ function extract_instruments(L, M)
     end
     return N_Z
 end
+
+"""
+    Compute probabilities for certain events of interest given a sample of instruments.
+"""
+function instrument_probabilities(N_Z, p, s)
+    counts = zeros(4)
+    ps  = p - s
+    for x in N_Z
+        if x == 0
+            counts[1] += 1
+        elseif 0 < x < ps
+            counts[2] += 1
+        elseif x == ps
+            counts[3] += 1
+        else # x > ps
+            counts[4] += 1
+        end
+    end
+    return (counts ./ length(N_Z))
+end
+
+
+
