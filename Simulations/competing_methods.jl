@@ -1,5 +1,7 @@
 
-using Distributions, LinearAlgebra, GLMNet, JuMP, RCall, Turing
+using Distributions, LinearAlgebra, GLMNet, JuMP, RCall
+using Turing, DynamicPPL, AdvancedVI
+using Turing: Variational
 
 include("aux_functions.jl")
 
@@ -326,8 +328,8 @@ ivbma_kl(y, X, Z, y_h, X_h, Z_h; s = 2000, b = 1000) = ivbma_kl(y, X, Matrix{Flo
     Σ_xx ~ InverseGamma((ν-1)/2, 1/2)
     σ_y_x ~ InverseGamma(ν/2, 1/2)
     a ~ Normal(0, sqrt(σ_y_x))
-    A = [1.0 a; 0.0 1.0]
-    Σ = A * [σ_y_x 0.0; 0.0 Σ_xx] * A'
+    #A = [1.0 a; 0.0 1.0]
+    #Σ = A * [σ_y_x 0.0; 0.0 Σ_xx] * A'
 
 
     # Intercepts and treatment effect priors
@@ -342,41 +344,47 @@ ivbma_kl(y, X, Z, y_h, X_h, Z_h; s = 2000, b = 1000) = ivbma_kl(y, X, Matrix{Flo
     τ_tr ~ halfcauchy
     λ_tr ~ filldist(halfcauchy, p)
 
-    β_inner ~ MvNormal(zeros(p), I)
-    β = β_inner .* λ_or * τ_or
-    Turing.@addlogprob! -sum(log.(λ_or * τ_or))
+    #β_inner ~ MvNormal(zeros(p), I)
+    #β = β_inner .* λ_or * τ_or
+    #Turing.@addlogprob! -sum(log.(λ_or * τ_or))
+    β ~ MvNormal(zeros(p), I * λ_or.^2 * τ_or^2)
 
-    δ_inner ~ MvNormal(zeros(p), I)
-    δ = δ_inner .* λ_tr * τ_tr
-    Turing.@addlogprob! -sum(log.(λ_tr * τ_tr))
+    #δ_inner ~ MvNormal(zeros(p), I)
+    #δ = δ_inner .* λ_tr * τ_tr
+    #Turing.@addlogprob! -sum(log.(λ_tr * τ_tr))
+    δ ~ MvNormal(zeros(p), I * λ_tr.^2 * τ_tr^2)
 
     # likelihood
-    y ~ MvNormal(α .+ x * τ + Z * β + (x .- γ - Z * δ) * (Σ[1, 2] / Σ[2, 2]), (Σ[1, 1] - Σ[1, 2]^2/Σ[2, 2]) * I)
-    x ~ MvNormal(γ .+ Z * δ, Σ[2, 2] * I)
+    y ~ MvNormal(α .+ x * τ + Z * β + (x .- γ - Z * δ) * a, σ_y_x * I)
+    x ~ MvNormal(γ .+ Z * δ, Σ_xx * I)
 end
 
-function hsiv(y, x, Z, y_h, x_h, Z_h; iters = 1000)
+function hsiv(y, x, Z, y_h, x_h, Z_h; samples = 1000)
     # fit model
     model = HorseshoeBayesianIV(y, x, Z)
-    chn = sample(model, NUTS(), iters; check_model=false, progress=false)
+    
+    q0 = q_meanfield_gaussian(model)
+    q_avg, info, state = vi(model, q0, 500; show_progress=false)
+
+    z = rand(q_avg, samples)
 
     # LPS calculation
     n_h = length(y_h)
-    scores = Matrix{Float64}(undef, n_h, iters)
-    for i in 1:iters
-        σ_y_x = Array(chn[:σ_y_x])[i, 1]
-        β = Array(group(chn, "β_inner"))[i, :] .* Array(group(chn, "λ_or"))[i, :] * Array(chn[:τ_or])[i, 1]
-        δ = Array(group(chn, "δ_inner"))[i, :] .* Array(group(chn, "λ_tr"))[i, :] * Array(chn[:τ_tr])[i, 1]
-        H = x_h .- Array(chn[:γ])[i, 1] - Z_h * δ
-        mean_q = Array(chn[:α])[i, 1] .+ x_h * Array(chn[:τ])[i, 1] + Z_h * β + H * Array(chn[:a])[i, 1]
+    scores = Matrix{Float64}(undef, n_h, samples)
+    for i in 1:samples
+        σ_y_x, a = z[3, i], z[4, i]
+        α, τ, β = z[5, i], z[6, i], z[30:39, i]
+        γ, δ = z[7, i], z[40:49, i]
+        H = x_h .- γ - Z_h * δ
+        mean_q = α .+ x_h * τ + Z_h * β + H * a
         scores[:, i] = [pdf(Normal(mean_q[j], sqrt(σ_y_x)), y_h[j]) for j in eachindex(y_h)]
     end
     scores_avg = mean(scores; dims = 2)
     lps = -mean(log.(scores_avg))
 
     return (
-        τ = mean(chn[:τ]),
-        CI = quantile(chn[:τ], [0.025, 0.975]),
+        τ = mean(z[6, :]),
+        CI = quantile(z[6, :], [0.025, 0.975]),
         lps = lps
     )
 end
