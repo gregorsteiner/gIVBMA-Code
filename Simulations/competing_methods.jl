@@ -2,6 +2,9 @@
 using Distributions, LinearAlgebra, GLMNet, JuMP, RCall
 using Turing, DynamicPPL, AdvancedVI
 using Turing: Variational
+using Logging
+Logging.disable_logging(Logging.Info)
+
 
 include("aux_functions.jl")
 
@@ -238,7 +241,14 @@ end
 function ivbma_kl(y, X, Z, W, y_h, X_h, Z_h, W_h; s = 2000, b = 1000, target_M = [1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0])
     n, l = (size(X, 1), size(X, 2))
 
-    @rput y X Z W s b
+    # centre data (so we do not need intercepts)
+    # We centre the holdout data with the training mean (for the LPS calculation)
+    y_c = y .- mean(y)
+    X_c = X .- mean(X, dims = 1)
+    y_h = y_h .- mean(y)
+    X_h = X_h .- mean(X, dims = 1)
+
+    @rput y_c X_c Z W s b
     R"""
     source("ivbma.R")
     max_attempts <- 5
@@ -247,7 +257,7 @@ function ivbma_kl(y, X, Z, W, y_h, X_h, Z_h, W_h; s = 2000, b = 1000, target_M =
     # We just retry it a few times (this rarely happens so should not affect the results too much)
     while(attempt <= max_attempts) {
         tryCatch({
-            res <- ivbma(y, X, Z, cbind(rep(1, nrow(W)), W), s = s, b = b, odens = s-b, print.every = 1e5)
+            res <- ivbma(y_c, X_c, Z, W, s = s, b = b, odens = s-b, print.every = 1e5)
             break  # If successful, exit the while loop
         }, error = function(e) {
             if(attempt == max_attempts) {
@@ -259,18 +269,17 @@ function ivbma_kl(y, X, Z, W, y_h, X_h, Z_h, W_h; s = 2000, b = 1000, target_M =
     """
     @rget res
     # Store posterior sample
-    α = res[:rho][:, l+1]
     τ = res[:rho][:, 1:l]
-    β = res[:rho][:, (l+2):end]
+    β = res[:rho][:, (l+1):end]
     Λ = res[:lambda]
     Σ = res[:Sigma]
 
     # Compute LPS on holdout data
-    n_h = length(y_h)
-    scores = Matrix{Float64}(undef, n_h, length(α))
-    for i in eachindex(α)
-        H = X_h - [ones(n_h) Z_h W_h] * Λ[:, :, i]
-        mean_y = α[i] * ones(n_h) + X_h[:, :] * τ[i, :] + W_h * β[i, :] + H * inv(Σ[2:end, 2:end, i]) * Σ[2:end, 1, i]
+    n_h, n_post = length(y_h), size(β, 1)
+    scores = Matrix{Float64}(undef, n_h, n_post)
+    for i in 1:n_post
+        H = X_h - [Z_h W_h] * Λ[:, :, i]
+        mean_y = X_h[:, :] * τ[i, :] + W_h * β[i, :] + H * inv(Σ[2:end, 2:end, i]) * Σ[2:end, 1, i]
         σ_y_x = Σ[1, 1, i] - Σ[2:end, 1, i]' * inv(Σ[2:end, 2:end, i]) * Σ[2:end, 1, i]
 
         scores[:, i] = [pdf(Normal(mean_y[j], sqrt(σ_y_x)), y_h[j]) for j in eachindex(y_h)]
@@ -280,7 +289,7 @@ function ivbma_kl(y, X, Z, W, y_h, X_h, Z_h, W_h; s = 2000, b = 1000, target_M =
     lps = -mean(log.(scores_avg))
 
     # compute posterior probability of true treatment model (this only matters for the simulation with multiple endogenous variables; we do not use this in the other scenarios)
-    M = res[:M][2:end, :, :]
+    M = res[:M][:, :, :]
     if l > 1 # the line below only makes sens if l is at least 2
         posterior_probability_M = [mean(mapslices(slice -> slice[:, 1] == target_M, M, dims=[1,2])), mean(mapslices(slice -> slice[:, 2] == target_M, M, dims=[1,2]))]
     else # else this doesn't matter and we'll just assign (0, 0), but won't use this
@@ -291,10 +300,9 @@ function ivbma_kl(y, X, Z, W, y_h, X_h, Z_h, W_h; s = 2000, b = 1000, target_M =
     M_size_bar = mean(sum(M, dims = 1), dims = 3)[1, :, 1]
 
     # Extract the number of instruments 
-    # In L, we drop the first l+1 variables (treatments + intercept)
-    # In M, we drop the first variable (intercept)
+    # In L, we drop the first l variables (treatments)
     # We select M for the first variable as we only use this for l = 1
-    N_Z = extract_instruments(res[:L]'[(l+2):(end), :], res[:M][2:(end), 1, :])
+    N_Z = extract_instruments(res[:L]'[(l+1):(end), :], res[:M][:, 1, :])
 
     return (
         τ = l == 1 ? mean(τ) : mean(τ, dims = 1)[1, :],
@@ -303,7 +311,7 @@ function ivbma_kl(y, X, Z, W, y_h, X_h, Z_h, W_h; s = 2000, b = 1000, target_M =
         L = res[:L],
         M = res[:M],
         posterior_probability_M = posterior_probability_M,
-        M_bar = res[:M_bar][2:end, :]',
+        M_bar = res[:M_bar]',
         M_size_bar = M_size_bar,
         L_bar = res[:L_bar],
         τ_full = res[:rho][:, 1:l],
@@ -358,6 +366,7 @@ ivbma_kl(y, X, Z, y_h, X_h, Z_h; s = 2000, b = 1000) = ivbma_kl(y, X, Matrix{Flo
     y ~ MvNormal(α .+ x * τ + Z * β + (x .- γ - Z * δ) * a, σ_y_x * I)
     x ~ MvNormal(γ .+ Z * δ, Σ_xx * I)
 end
+
 
 function hsiv(y, x, Z, y_h, x_h, Z_h; samples = 1000)
     # fit model
