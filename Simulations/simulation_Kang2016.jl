@@ -57,8 +57,7 @@ function sim_func(m, n; τ = 0.1, p = 10, s = 2, c = 0.5)
     meths = [
         "BMA (hyper-g/n)", "gIVBMA (BRIC)", "gIVBMA (hyper-g/n)", "gIVBMA (BRIC, ω_a = 0.1)", "gIVBMA (hyper-g/n, ω_a = 0.1)", 
         "gIVBMA (BRIC, ω_a = 1)", "gIVBMA (hyper-g/n, ω_a = 1)", "gIVBMA (BRIC, ω_a = 10)", "gIVBMA (hyper-g/n, ω_a = 10)",
-        "BayesHS",
-        "TSLS", "O-TSLS", "IVBMA", "sisVIVE"
+        "BayesHS", "TSLS", "O-TSLS", "IVBMA", "sisVIVE"
         ]
 
 
@@ -125,25 +124,22 @@ Random.seed!(42)
 res50 = map(s -> sim_func(m, 50; s = s), ss)
 res500 = map(s -> sim_func(m, 500; s = s), ss)
 
-
 bson("SimResKang2016.bson", Dict(:n50 => res50, :n500 => res500))
 
 """
     Create tables with results.
 """
-
-
 # Helper function to format individual results into a LaTeX tabular format
 function format_result(res; type = "Performance")
     if type == "Performance"
         tab = vcat(res.MAE, res.Bias, res.Coverage', res.LPS)'
         return round.(tab, digits = 2)
     elseif type == "Instruments"
-        return round.(res.PP_N_Z', digits = 3)
+        return round.(res.PP_N_Z', digits = 2)
     end
 end
 
-
+# Create latex table
 function make_latex_table(res, colnames, methods; type = "Performance")
     table_50_001 = format_result(res[:n50][1]; type = type)
     table_50_01 = format_result(res[:n50][2]; type = type)
@@ -200,7 +196,7 @@ end
 
 
 # create table with instrument selection performance
-cols = ["\$0\$", "\$(0, p-s) \$", "\$p-s\$", "\$ (p-s, p) \$"]
+cols = ["\$0\$", "\$(0, p-s) \$", "\$p-s\$", "\$(p-s, p]\$"]
 meths = ["gIVBMA (BRIC)", "gIVBMA (h-\$g/n\$)", "gIVBMA (BRIC, \$\\omega_a = 0.1\$)", "gIVBMA (h-\$g/n\$, \$\\omega_a = 0.1\$)", 
         "gIVBMA (BRIC, \$\\omega_a = 1\$)", "gIVBMA (h-\$g/n\$, \$\\omega_a = 1\$)", "gIVBMA (BRIC, \$\\omega_a = 10\$)", "gIVBMA (h-\$g/n\$, \$\\omega_a = 10\$)",
         "IVBMA"]
