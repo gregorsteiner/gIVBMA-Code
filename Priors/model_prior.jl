@@ -15,7 +15,7 @@ function model_prior(x, k, a = 1, m = k/2)
 end
 
 
-# prior probability mass function for valid instruments (log-scale)
+# prior probability mass function for valid instruments
 function instrument_prior(n_z, p)
     total = 0.0
     Γ(x) = SpecialFunctions.gamma(x)

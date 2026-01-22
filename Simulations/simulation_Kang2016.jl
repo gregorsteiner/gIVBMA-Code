@@ -202,6 +202,14 @@ meths = ["gIVBMA (BRIC)", "gIVBMA (h-\$g/n\$)", "gIVBMA (BRIC, \$\\omega_a = 0.1
         "IVBMA"]
 make_latex_table(res, cols, meths; type = "Instruments") |> println
 
+# compute prior probs for comparison
+include("../Priors/model_prior.jl")
+probs = [instrument_prior(i, 10) for i in 0:10]
+for s in [3, 6]
+    round.([probs[1], sum(probs[2:(10-s)]), probs[10-s+1], sum(probs[(10-s+2):end])], digits = 3) |> println
+end
+
+
 # Create table with main performance measures
 cols = ["\\textbf{MAE}", "\\textbf{Bias}", "\\textbf{Cov.}", "\\textbf{LPS}"]
 meths = ["BMA (h-\$g/n\$)", "gIVBMA (BRIC)", "gIVBMA (h-\$g/n\$)", "gIVBMA (BRIC, \$\\omega_a = 0.1\$)", "gIVBMA (h-\$g/n\$, \$\\omega_a = 0.1\$)", 
