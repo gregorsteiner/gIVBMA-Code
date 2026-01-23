@@ -238,7 +238,7 @@ end
 """
     Implement the IVBMA procedure of Karl & Lenkoski based on their R package.
 """
-function ivbma_kl(y, X, Z, W, y_h, X_h, Z_h, W_h; s = 2000, b = 1000, target_M = [1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0])
+function ivbma_kl(y, X, Z, W, y_h, X_h, Z_h, W_h; s = 2000, b = 1000, target_M = [1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0], extract_instruments = true)
     n, l = (size(X, 1), size(X, 2))
 
     # centre data (so we do not need intercepts)
@@ -299,10 +299,15 @@ function ivbma_kl(y, X, Z, W, y_h, X_h, Z_h, W_h; s = 2000, b = 1000, target_M =
     # compute mean model size (if l>1 we average the model sizes for the different endogenous variables)
     M_size_bar = mean(sum(M, dims = 1), dims = 3)[1, :, 1]
 
-    # Extract the number of instruments 
+    # Extract the number of instruments (if needed)
     # In L, we drop the first l variables (treatments)
     # We select M for the first variable as we only use this for l = 1
-    N_Z = extract_instruments(res[:L]'[(l+1):(end), :], res[:M][:, 1, :])
+    # This is not needed in all scenarios => wrap it in this if-statement
+    if extract_instruments
+        N_Z = extract_instruments(res[:L]'[(l+1):(end), :], res[:M][:, 1, :])
+    else
+        N_Z = missing
+    end
 
     return (
         τ = l == 1 ? mean(τ) : mean(τ, dims = 1)[1, :],
