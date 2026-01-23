@@ -65,7 +65,7 @@ function bma_res(y, X, Z, y_h, X_h, Z_h; g_prior = "hyper-g/n")
 end
 
 function sim_func(m, n; c_M = 3/8, τ = 0.1, p = 20, k = 10, c = 1/2)
-    meths = ["BMA (hyper-g/n)", "gIVBMA (IW)", "gIVBMA (ω_a = 0.1)", "gIVBMA (IW, 2C)", "TSLS", "O-TSLS", "JIVE", "RJIVE", "MATSLS", "IVBMA", "Post-LASSO"]
+    meths = ["BMA (hyper-g/n)", "gIVBMA (IW)", "gIVBMA (ω_a = 0.1)", "gIVBMA (IW, 2C)", "BayesHS", "TSLS", "O-TSLS", "JIVE", "RJIVE", "MATSLS", "IVBMA", "Post-LASSO"]
 
     tau_store = Matrix(undef, m, length(meths))
     times_covered = zeros(length(meths))
@@ -84,6 +84,7 @@ function sim_func(m, n; c_M = 3/8, τ = 0.1, p = 20, k = 10, c = 1/2)
             givbma_res(d.y, d.x, d.Z, d.W, d_h.y, d_h.x, d_h.Z, d_h.W; g_prior = "hyper-g/n", cov_prior = "IW"),
             givbma_res(d.y, d.x, d.Z, d.W, d_h.y, d_h.x, d_h.Z, d_h.W; g_prior = "hyper-g/n", cov_prior = "Cholesky", ω_a = 0.1),
             givbma_res(d.y, d.x, d.Z, d.W, d_h.y, d_h.x, d_h.Z, d_h.W; g_prior = "hyper-g/n", two_comp = true),
+            hsiv(d.y, d.x, d.Z, d.W, d_h.y, d_h.x, d_h.Z, d_h.W),
             tsls(d.y, d.x, d.Z, d.W, d_h.y, d_h.x, d_h.W),
             tsls(d.y, d.x, d.Z[:, 1:10], d.W[:, 1:5], d_h.y, d_h.x, d_h.W[:, 1:5]),
             jive(d.y, d.x, d.Z, d.W, d_h.y, d_h.x, d_h.W),
@@ -194,7 +195,7 @@ function make_stacked_multicolumn_table(res)
     PL_frequencies = map(x -> x.No_Instruments_PL, [res[:n50][1], res[:n50][2], res[:n500][1], res[:n500][2]])
 
     # Header for each method
-    methods = ["BMA (hyper-g/n)", "gIVBMA (BRIC)", "gIVBMA (hyper-g/n)", "gIVBMA (2C)", "IVBMA (KL)", "OLS", "TSLS", "O-TSLS", "JIVE", "RJIVE", "MATSLS", "Post-LASSO"]
+    methods = ["BMA (hyper-\$g/n\$)", "gIVBMA (IW)", "gIVBMA (\$\\omega_a = 0.1\$)", "gIVBMA (IW, 2C)", "BayesHS", "TSLS", "O-TSLS", "JIVE", "RJIVE", "MATSLS", "IVBMA", "Post-LASSO"]
     
     # Start the LaTeX table
     table_str = "\\begin{table}[H]\n\\centering\n\\begin{tabular}{l*{8}{r}}\n\\toprule\n"
