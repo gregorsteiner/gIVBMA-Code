@@ -121,18 +121,18 @@ function sim_func(m, n; c_M = 3/8, τ = 0.1, p = 20, k = 10, c = 1/2)
 
     # We could potentially get an error here if Post-Lasso never selects any instruments, but this should not happen for m large enough
     mae = [median(skipmissing(abs.(tau_store[:, i] .- τ))) for i in eachindex(meths)]
-    bias = [(median(skipmissing(tau_store[:, i])) - τ) for i in eachindex(meths)]
+    bias = [abs(median(skipmissing(tau_store[:, i])) - τ) for i in eachindex(meths)]
     lps = [mean(lps_store[:, 1:(end-1)], dims = 1) missing]
     cov = times_covered ./ [repeat([m], length(meths)-1); m - pl_no_instruments]
 
     return (MAE = mae, Bias = bias, Coverage = cov, LPS = lps, No_Instruments_PL = pl_no_instruments)
 end
 
-
 ##### Run the simulation #####
 m = 100
 c_M = [1/8, 3/8] # In this setup we get a first stage R^2 ≈ 0.1 with c_M = 3/8 and R^2 ≈ 0.01 with c_M = 1/8.
 
+Random.seed!(42)
 res50 = map(c -> sim_func(m, 50; c_M = c), c_M)
 res500 = map(c -> sim_func(m, 500; c_M = c), c_M)
 
