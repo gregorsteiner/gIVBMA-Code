@@ -179,7 +179,7 @@ function SWTSLS(W, a, b, B, se, sl, U, N, d1)
     f = (-B * K - se * sl * (ones(M) * M - 2 * K)) / N
 
     # Create the JuMP model and set Ipopt as the optimizer, suppressing output
-    model = Model(Ipopt.Optimizer)
+    model = JuMP.Model(Ipopt.Optimizer)
     set_silent(model)  # Suppresses all solver messages
 
     # Define the variable for W

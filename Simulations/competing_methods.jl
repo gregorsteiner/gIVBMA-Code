@@ -1,5 +1,13 @@
 
 using Distributions, LinearAlgebra, GLMNet, JuMP, RCall
+using Turing, DynamicPPL, AdvancedVI
+using Turing: Variational
+using Bijectors: bijector
+using Logging
+Logging.disable_logging(Logging.Info)
+
+
+include("aux_functions.jl")
 
 """
     This function implements a TSLS estimator to compare our approach to.
@@ -231,18 +239,26 @@ end
 """
     Implement the IVBMA procedure of Karl & Lenkoski based on their R package.
 """
-function ivbma_kl(y, X, Z, W, y_h, X_h, Z_h, W_h; s = 2000, b = 1000, target_M = [1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0])
+function ivbma_kl(y, X, Z, W, y_h, X_h, Z_h, W_h; s = 2000, b = 1000, target_M = [1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0], extract_instruments = true)
     n, l = (size(X, 1), size(X, 2))
 
-    @rput y X Z W s b
+    # centre data (so we do not need intercepts)
+    # We centre the holdout data with the training mean (for the LPS calculation)
+    y_c = y .- mean(y)
+    X_c = X .- mean(X, dims = 1)
+    y_h = y_h .- mean(y)
+    X_h = X_h .- mean(X, dims = 1)
+
+    @rput y_c X_c Z W s b
     R"""
     source("ivbma.R")
     max_attempts <- 5
     attempt <- 1
-    # It sometimes happens that the ivbma code fails because of a singular matrix (this is usually within the Bartlett decomposition). We just retry it a few times (this rarely happens so should not affect the results too much)
+    # It sometimes happens that the ivbma code fails because of a singular matrix (this is usually within the Bartlett decomposition).
+    # We just retry it a few times (this rarely happens so should not affect the results too much)
     while(attempt <= max_attempts) {
         tryCatch({
-            res <- ivbma(y, X, Z, cbind(rep(1, nrow(W)), W), s = s, b = b, odens = s-b, print.every = 1e5)
+            res <- ivbma(y_c, X_c, Z, W, s = s, b = b, odens = s-b, print.every = 1e5)
             break  # If successful, exit the while loop
         }, error = function(e) {
             if(attempt == max_attempts) {
@@ -254,28 +270,27 @@ function ivbma_kl(y, X, Z, W, y_h, X_h, Z_h, W_h; s = 2000, b = 1000, target_M =
     """
     @rget res
     # Store posterior sample
-    α = res[:rho][:, l+1]
     τ = res[:rho][:, 1:l]
-    β = res[:rho][:, (l+2):end]
+    β = res[:rho][:, (l+1):end]
     Λ = res[:lambda]
     Σ = res[:Sigma]
 
     # Compute LPS on holdout data
-    n_h = length(y_h)
-    scores = Matrix{Float64}(undef, n_h, length(α))
-    for i in eachindex(α)
-        H = X_h - [ones(n_h) Z_h W_h] * Λ[:, :, i]
-        mean_y = α[i] * ones(n_h) + X_h[:, :] * τ[i, :] + W_h * β[i, :] + H * inv(Σ[2:end, 2:end, i]) * Σ[2:end, 1, i]
+    n_h, n_post = length(y_h), size(β, 1)
+    scores = Matrix{Float64}(undef, n_h, n_post)
+    for i in 1:n_post
+        H = X_h - [Z_h W_h] * Λ[:, :, i]
+        mean_y = X_h[:, :] * τ[i, :] + W_h * β[i, :] + H * inv(Σ[2:end, 2:end, i]) * Σ[2:end, 1, i]
         σ_y_x = Σ[1, 1, i] - Σ[2:end, 1, i]' * inv(Σ[2:end, 2:end, i]) * Σ[2:end, 1, i]
 
         scores[:, i] = [pdf(Normal(mean_y[j], sqrt(σ_y_x)), y_h[j]) for j in eachindex(y_h)]
     end
     scores_avg = mean(scores; dims = 2)[:, 1]
-    scores_avg = ifelse.(scores_avg .== 0, 1e-300, scores_avg) # if any of the scores is numericaly zero, we set it to 1e-300 such that its log is not -Inf
+    scores_avg = ifelse.(scores_avg .== 0, 1e-300, scores_avg) # if any of the scores is numerically zero, we set it to 1e-300 such that its log is not -Inf
     lps = -mean(log.(scores_avg))
 
     # compute posterior probability of true treatment model (this only matters for the simulation with multiple endogenous variables; we do not use this in the other scenarios)
-    M = res[:M][2:end, :, :]
+    M = res[:M][:, :, :]
     if l > 1 # the line below only makes sens if l is at least 2
         posterior_probability_M = [mean(mapslices(slice -> slice[:, 1] == target_M, M, dims=[1,2])), mean(mapslices(slice -> slice[:, 2] == target_M, M, dims=[1,2]))]
     else # else this doesn't matter and we'll just assign (0, 0), but won't use this
@@ -285,6 +300,16 @@ function ivbma_kl(y, X, Z, W, y_h, X_h, Z_h, W_h; s = 2000, b = 1000, target_M =
     # compute mean model size (if l>1 we average the model sizes for the different endogenous variables)
     M_size_bar = mean(sum(M, dims = 1), dims = 3)[1, :, 1]
 
+    # Extract the number of instruments (if needed)
+    # In L, we drop the first l variables (treatments)
+    # We select M for the first variable as we only use this for l = 1
+    # This is not needed in all scenarios => wrap it in this if-statement
+    if extract_instruments
+        N_Z = extract_instruments(res[:L]'[(l+1):(end), :], res[:M][:, 1, :])
+    else
+        N_Z = missing
+    end
+
     return (
         τ = l == 1 ? mean(τ) : mean(τ, dims = 1)[1, :],
         CI = l == 1 ? quantile(τ, [0.025, 0.975]) : [quantile(τ[:, i], [0.025, 0.975]) for i in axes(τ, 2)],
@@ -292,14 +317,104 @@ function ivbma_kl(y, X, Z, W, y_h, X_h, Z_h, W_h; s = 2000, b = 1000, target_M =
         L = res[:L],
         M = res[:M],
         posterior_probability_M = posterior_probability_M,
-        M_bar = res[:M_bar][2:end, :]',
+        M_bar = res[:M_bar]',
         M_size_bar = M_size_bar,
         L_bar = res[:L_bar],
         τ_full = res[:rho][:, 1:l],
-        Σ = Σ
+        Σ = Σ,
+        N_Z = N_Z
     )
 end
 
 # alternative method for invalid instruments
 ivbma_kl(y, X, Z, y_h, X_h, Z_h; s = 2000, b = 1000) = ivbma_kl(y, X, Matrix{Float64}(undef, length(y), 0), Z, y_h, X_h, Matrix{Float64}(undef, length(y_h), 0), Z_h; s = s, b = b)
 
+
+"""
+    A global-local shrinkage approach to achieve shrinkage in both equations. Currently only works for a single endogenous variable (l=1).
+"""
+@model function HorseshoeBayesianIV(y, x, Z, W; dist_x = "Gaussian")
+    p1, p2 = size(Z, 2), size(W, 2)
+
+    # Covariance prior
+    ν_transf ~ Exponential(1)
+    ν = ν_transf + 2
+    Σ_xx ~ InverseGamma((ν-1)/2, 1/2)
+    σ_y_x ~ InverseGamma(ν/2, 1/2)
+    a ~ Normal(0, sqrt(σ_y_x))
+    #A = [1.0 a; 0.0 1.0]
+    #Σ = A * [σ_y_x 0.0; 0.0 Σ_xx] * A'
+
+
+    # Intercepts and treatment effect priors
+    α ~ Normal(0, 10)
+    τ ~ Normal(0, 10)
+    γ ~ Normal(0, 10)
+
+    # Horseshoe
+    halfcauchy  = truncated(Cauchy(0, 1); lower=0)
+    τ_or ~ halfcauchy
+    λ_or ~ filldist(halfcauchy, p2)
+    τ_tr ~ halfcauchy
+    λ_tr ~ filldist(halfcauchy, p1+p2)
+
+    β ~ MvNormal(zeros(p2), I * λ_or.^2 * τ_or^2)
+    δ ~ MvNormal(zeros(p1+p2), I * λ_tr.^2 * τ_tr^2)
+
+    # likelihood
+    μ_x = γ .- [Z W] * δ
+    y ~ MvNormal(α .+ x * τ + W * β + (x - μ_x) * a, σ_y_x * I)
+    if dist_x == "Gaussian"
+        x ~ MvNormal(μ_x, Σ_xx * I)
+    elseif dist_x == "PLN"
+        q ~ MvNormal(γ .+ [Z W] * δ, Σ_xx * I)
+        # Vectorized Poisson log-likelihood
+        Turing.@addlogprob! sum(x .* q .- exp.(q) .- loggamma.(x .+ 1))
+    end
+end
+
+
+function hsiv(y, x, Z, W, y_h, x_h, Z_h, W_h; samples = 1000, dist_x = "Gaussian")
+    # fit model
+    model = HorseshoeBayesianIV(y, x, Z, W; dist_x = dist_x)
+    
+    q0 = q_meanfield_gaussian(model)
+    vi_iters = length(y) > 200 ? 200 : 500 # use fewer iterations for the larger samples
+    q_avg, info, state = vi(model, q0, vi_iters; show_progress=false)
+
+    # sample from the variational approx to get summary statistics
+    z = rand(q_avg, samples)
+
+    # get parameter indices
+    _, sym2range = bijector(model, Val(true));
+    idx = map(x -> x[1], sym2range)
+
+    # LPS calculation
+    n_h = length(y_h)
+    scores = Matrix{Float64}(undef, n_h, samples)
+    for i in 1:samples
+        σ_y_x, a, Σ_xx = z[idx.σ_y_x[1], i], z[idx.a[1], i], z[idx.Σ_xx[1], i]
+        α, τ, β = z[idx.α[1], i], z[idx.τ[1], i], z[idx.β, i]
+        γ, δ = z[idx.γ[1], i], z[idx.δ, i]
+        mean_q_x = γ .- [Z_h W_h] * δ
+        if dist_x == "Gaussian"
+            q_x = x_h
+        elseif dist_x == "PLN"
+            q_x = rand(MvNormal(mean_q_x, Σ_xx * I))
+        end
+        H = q_x - mean_q_x
+        mean_q = α .+ x_h * τ + W_h * β + H * a
+        scores[:, i] = [pdf(Normal(mean_q[j], sqrt(σ_y_x)), y_h[j]) for j in eachindex(y_h)]
+    end
+    scores_avg = mean(scores; dims = 2)
+    lps = -mean(log.(scores_avg))
+
+    return (
+        τ = mean(z[idx.τ[1], :]),
+        CI = quantile(z[idx.τ[1], :], [0.025, 0.975]),
+        lps = lps
+    )
+end
+
+## alternative method for free instrument selection
+hsiv(y, x, Z, y_h, x_h, Z_h; samples = 1000) = hsiv(y, x, Matrix{Float64}(undef, length(y), 0), Z, y_h, x_h, Matrix{Float64}(undef, length(y_h), 0), Z_h; samples = samples)

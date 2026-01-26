@@ -52,12 +52,12 @@ function bma_res(y, X, Z, y_h, X_h, Z_h; g_prior = "BRIC")
     )
 end
 
-function givbma_res(y, X, Z, y_h, X_h, Z_h; dist = ["Gaussian", "Gaussian", "BL"], g_prior = "BRIC", target = [1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0])
-    res = givbma(y, X, Z; dist = dist, g_prior = g_prior, iter = 1200, burn = 200)
+function givbma_res(y, X, Z, y_h, X_h, Z_h; dist = ["Gaussian", "Gaussian", "BL"], g_prior = "hyper-g/n", cov_prior = "IW", ω_a = 0.1, target = [1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0])
+    res = givbma(y, X, Z; dist = dist, g_prior = g_prior, cov_prior = cov_prior, ω_a = ω_a, iter = 1200, burn = 200)
     lps_int = lps(res, y_h, X_h, Z_h)
 
     # get posterior probability of the true treatment model
-    posterior_probability_M = mean(mapslices(row -> row == target, res.M, dims=2))
+    posterior_probability_M = mean(mapslices(row -> row == target, res.M, dims=1))
 
     return (
         τ = map(mean, rbw(res)),
@@ -67,8 +67,8 @@ function givbma_res(y, X, Z, y_h, X_h, Z_h; dist = ["Gaussian", "Gaussian", "BL"
         ),
         lps = lps_int,
         posterior_probability_M = posterior_probability_M,
-        M_bar = mean(res.M, dims = 1),
-        M_size_bar = mean(sum(res.M, dims = 2))
+        M_bar = mean(res.M, dims = 2)',
+        M_size_bar = mean(sum(res.M, dims = 1))
     )
 end
 
@@ -84,7 +84,7 @@ end
 
 # Wrapper function that runs the simulation
 function sim_func(m, n; c = 2/3, tau = [1/2, -1/2])
-    meths = ["BMA (hyper-g/n)", "gIVBMA (BRIC)", "gIVBMA (hyper-g/n)", "IVBMA (KL)", "OLS", "TSLS", "O-TSLS", "MATSLS"]
+    meths = ["BMA (hyper-g/n)", "gIVBMA (IW)", "gIVBMA (ω_a = 0.1)", "IVBMA (KL)", "TSLS", "O-TSLS", "MATSLS"]
 
     tau_store = zeros(m, 2, length(meths))
     times_covered = zeros(length(meths), 2)
@@ -100,10 +100,9 @@ function sim_func(m, n; c = 2/3, tau = [1/2, -1/2])
 
         res = [
             bma_res(y, X, Z, y_h, X_h, Z_h; g_prior = "hyper-g/n"),
-            givbma_res(y, X, Z, y_h, X_h, Z_h; g_prior = "BRIC"),
-            givbma_res(y, X, Z, y_h, X_h, Z_h; g_prior = "hyper-g/n"),
+            givbma_res(y, X, Z, y_h, X_h, Z_h; cov_prior = "IW"),
+            givbma_res(y, X, Z, y_h, X_h, Z_h; cov_prior = "Cholesky", ω_a = 0.1),
             ivbma_kl(y, X, Z, y_h, X_h, Z_h),
-            ols(y, X, Z, y_h, X_h, Z_h),
             tsls(y, X, Z, y_h, X_h, Z_h),
             tsls(y, X, Z[:, [1, 5, 7, 11, 13]], y_h, X_h, Z_h[:, [1, 5, 7, 11, 13]]),
             matsls(y, X, Z, y_h, X_h, Z_h)
@@ -136,6 +135,7 @@ end
 
 m = 100
 
+Random.seed!(42)
 results_low = sim_func(m, 50)
 results_high = sim_func(m, 500)
 
@@ -154,11 +154,10 @@ res500 = format_result(res[:n500])
 
 # Define row names
 row_names = [
-    "BMA (hyper-g/n)",
-    "gIVBMA (BRIC)",
-    "gIVBMA (hyper-g/n)",
-    "IVBMA (KL)",
-    "OLS",
+    "BMA (hyper-\$g/n\$)",
+    "gIVBMA (hyper-\$g/n\$, IW)",
+    "gIVBMA (hyper-\$g/n\$, \$\\omega_a = 0.1\$)",
+    "IVBMA",
     "TSLS",
     "O-TSLS",
     "MATSLS"
@@ -237,7 +236,7 @@ using CairoMakie, LaTeXStrings
 
 # True posterior probability and mean model size
 function create_boxplots(X_1, Y_1, X_2, Y_2)
-    labels = [L"gIVBMA (BRIC$$)", L"gIVBMA (hyper-$g/n$)", L"IVBMA ($X_1$)", L"IVBMA ($X_2$)"]
+    labels = [L"gIVBMA (hyper-$g/n$, IW)", L"gIVBMA (hyper-$g/n$, $\omega_a = 0.1$)", L"IVBMA ($X_1$)", L"IVBMA ($X_2$)"]
     titles = [L"\text{Posterior probability true model}", L"\text{Mean model size}"]
     
     n_categories = size(X_1, 2)
@@ -285,16 +284,13 @@ save("MultEndSimulation_Selection_Results.pdf", create_boxplots(
 
 # Posterior Inclusion probabilities
 function create_comparison_table(n50_data, n500_data)
-    # Method names
-    methods = ["gIVBMA (BRIC)", "gIVBMA (hyper-g/n)", "IVBMA (X1)", "IVBMA (X2)"]
-    
     # Start the LaTeX table
     latex_output = """
     \\begin{table}[h]
     \\centering
     \\begin{tabular}{l*{8}{c}}
     \\toprule
-    & \\multicolumn{2}{c}{gIVBMA (BRIC)} & \\multicolumn{2}{c}{gIVBMA (hyper-g/n)} & \\multicolumn{2}{c}{IVBMA (X1)} & \\multicolumn{2}{c}{IVBMA (X2)} \\\\
+    & \\multicolumn{2}{c}{gIVBMA (hyper-\$g/n\$, IW)} & \\multicolumn{2}{c}{gIVBMA (hyper-\$g/n\$, \$\\omega_a = 0.1\$)} & \\multicolumn{2}{c}{IVBMA (X1)} & \\multicolumn{2}{c}{IVBMA (X2)} \\\\
     \\cmidrule(lr){2-3} \\cmidrule(lr){4-5} \\cmidrule(lr){6-7} \\cmidrule(lr){8-9}
     Variable"""
     
