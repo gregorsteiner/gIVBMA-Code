@@ -1,7 +1,7 @@
 
 
-using Distributions, LinearAlgebra
-using BSON, ProgressBars
+using Distributions, LinearAlgebra, Random
+using BSON
 
 # the following line needs to be run when using the gIVBMA package for the first time
 # using Pkg; Pkg.add(url="https://github.com/gregorsteiner/gIVBMA.jl.git")

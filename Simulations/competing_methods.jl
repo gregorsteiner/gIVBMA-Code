@@ -333,7 +333,7 @@ ivbma_kl(y, X, Z, y_h, X_h, Z_h; s = 2000, b = 1000) = ivbma_kl(y, X, Matrix{Flo
 """
     A global-local shrinkage approach to achieve shrinkage in both equations. Currently only works for a single endogenous variable (l=1).
 """
-@model function HorseshoeBayesianIV(y, x, Z, W)
+@model function HorseshoeBayesianIV(y, x, Z, W; dist_x = "Gaussian")
     p1, p2 = size(Z, 2), size(W, 2)
 
     # Covariance prior
@@ -358,28 +358,29 @@ ivbma_kl(y, X, Z, y_h, X_h, Z_h; s = 2000, b = 1000) = ivbma_kl(y, X, Matrix{Flo
     τ_tr ~ halfcauchy
     λ_tr ~ filldist(halfcauchy, p1+p2)
 
-    #β_inner ~ MvNormal(zeros(p), I)
-    #β = β_inner .* λ_or * τ_or
-    #Turing.@addlogprob! -sum(log.(λ_or * τ_or))
     β ~ MvNormal(zeros(p2), I * λ_or.^2 * τ_or^2)
-
-    #δ_inner ~ MvNormal(zeros(p), I)
-    #δ = δ_inner .* λ_tr * τ_tr
-    #Turing.@addlogprob! -sum(log.(λ_tr * τ_tr))
     δ ~ MvNormal(zeros(p1+p2), I * λ_tr.^2 * τ_tr^2)
 
     # likelihood
-    y ~ MvNormal(α .+ x * τ + W * β + (x .- γ - [Z W] * δ) * a, σ_y_x * I)
-    x ~ MvNormal(γ .+ [Z W] * δ, Σ_xx * I)
+    μ_x = γ .- [Z W] * δ
+    y ~ MvNormal(α .+ x * τ + W * β + (x - μ_x) * a, σ_y_x * I)
+    if dist_x == "Gaussian"
+        x ~ MvNormal(μ_x, Σ_xx * I)
+    elseif dist_x == "PLN"
+        q ~ MvNormal(γ .+ [Z W] * δ, Σ_xx * I)
+        # Vectorized Poisson log-likelihood
+        Turing.@addlogprob! sum(x .* q .- exp.(q) .- loggamma.(x .+ 1))
+    end
 end
 
 
-function hsiv(y, x, Z, W, y_h, x_h, Z_h, W_h; samples = 1000)
+function hsiv(y, x, Z, W, y_h, x_h, Z_h, W_h; samples = 1000, dist_x = "Gaussian")
     # fit model
-    model = HorseshoeBayesianIV(y, x, Z, W)
+    model = HorseshoeBayesianIV(y, x, Z, W; dist_x = dist_x)
     
     q0 = q_meanfield_gaussian(model)
-    q_avg, info, state = vi(model, q0, 500; show_progress=false)
+    vi_iters = length(y) > 200 ? 200 : 500 # use fewer iterations for the larger samples
+    q_avg, info, state = vi(model, q0, vi_iters; show_progress=false)
 
     # sample from the variational approx to get summary statistics
     z = rand(q_avg, samples)
@@ -392,10 +393,16 @@ function hsiv(y, x, Z, W, y_h, x_h, Z_h, W_h; samples = 1000)
     n_h = length(y_h)
     scores = Matrix{Float64}(undef, n_h, samples)
     for i in 1:samples
-        σ_y_x, a = z[idx.σ_y_x[1], i], z[idx.a[1], i]
+        σ_y_x, a, Σ_xx = z[idx.σ_y_x[1], i], z[idx.a[1], i], z[idx.Σ_xx[1], i]
         α, τ, β = z[idx.α[1], i], z[idx.τ[1], i], z[idx.β, i]
         γ, δ = z[idx.γ[1], i], z[idx.δ, i]
-        H = x_h .- γ - [Z_h W_h] * δ
+        mean_q_x = γ .- [Z_h W_h] * δ
+        if dist_x == "Gaussian"
+            q_x = x_h
+        elseif dist_x == "PLN"
+            q_x = rand(MvNormal(mean_q_x, Σ_xx * I))
+        end
+        H = q_x - mean_q_x
         mean_q = α .+ x_h * τ + W_h * β + H * a
         scores[:, i] = [pdf(Normal(mean_q[j], sqrt(σ_y_x)), y_h[j]) for j in eachindex(y_h)]
     end

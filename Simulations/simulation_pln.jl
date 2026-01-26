@@ -1,5 +1,6 @@
 
-using Distributions, LinearAlgebra
+
+using Distributions, LinearAlgebra, Random
 using BSON, ProgressBars
 
 # the following line needs to be run when using the gIVBMA package for the first time
@@ -10,9 +11,12 @@ include("competing_methods.jl")
 include("bma.jl")
 include("MA2SLS.jl")
 
+
 ##### Define auxiliary functions #####
 
-function gen_instr_coeff(p::Integer, c_M::Number)
+# generate the instruments coefficients
+# Note that with p = 20 choosing c_M = 3/8 leads to an R^2 of approximately 0.1.
+function gen_instr_coeff(p, c_M)
     res = zeros(p)
     for i in 1:p
         if i <= p/2
@@ -21,7 +25,6 @@ function gen_instr_coeff(p::Integer, c_M::Number)
     end
     return res
 end
-
 
 function gen_data(n::Integer = 100, c_M::Number = 3/8, τ::Number = 0.1, p::Integer = 20, k::Integer = 10, c::Number = 1/2)
     V = rand(MvNormal(zeros(p+k), I), n)'
@@ -42,8 +45,8 @@ function gen_data(n::Integer = 100, c_M::Number = 3/8, τ::Number = 0.1, p::Inte
     return (y=y, x=x, q=q, Z=Z, W=W)
 end
 
-function givbma_res(y, x, Z, W, y_h, x_h, Z_h, W_h; g_prior = "BRIC", two_comp = false)
-    res = givbma(y, x, Z, W; g_prior = g_prior, two_comp = two_comp, dist = ["Gaussian", "PLN"], iter = 1200, burn = 200)
+function givbma_res(y, x, Z, W, y_h, x_h, Z_h, W_h; g_prior = "BRIC", cov_prior = "IW", ω_a = 1.0,  two_comp = false)
+    res = givbma(y, x, Z, W; dist = ["Gaussian", "PLN"], g_prior = g_prior, two_comp = two_comp, cov_prior = cov_prior, ω_a = ω_a, iter = 1200, burn = 200)
     lps_int = lps(res, y_h, x_h, Z_h, W_h)
     return (
         τ = mean(rbw(res)[1]),
@@ -62,9 +65,8 @@ function bma_res(y, X, Z, y_h, X_h, Z_h; g_prior = "hyper-g/n")
     )
 end
 
-
 function sim_func(m, n; c_M = 3/8, τ = 0.1, p = 20, k = 10, c = 1/2)
-    meths = ["BMA (hyper-g/n)", "gIVBMA (BRIC)", "gIVBMA (hyper-g/n)", "gIVBMA (2C)", "IVBMA (KL)", "OLS", "TSLS", "O-TSLS", "JIVE", "RJIVE", "MATSLS", "Post-LASSO"]
+    meths = ["BMA (hyper-g/n)", "gIVBMA (IW)", "gIVBMA (ω_a = 0.1)", "gIVBMA (IW, 2C)", "BayesHS", "TSLS", "O-TSLS", "JIVE", "RJIVE", "MATSLS", "IVBMA", "Post-LASSO"]
 
     tau_store = Matrix(undef, m, length(meths))
     times_covered = zeros(length(meths))
@@ -72,40 +74,54 @@ function sim_func(m, n; c_M = 3/8, τ = 0.1, p = 20, k = 10, c = 1/2)
 
     pl_no_instruments = 0 # count how many times post-lasso does not select any instruments
 
-    for i in ProgressBar(1:m)
+    idx_switch = findfirst(==("IVBMA"), meths) - 1
+
+    Threads.@threads for i in ProgressBar(1:m)
         d = gen_data(n, c_M, τ, p, k, c)
         d_h = gen_data(Int(n/5), c_M, τ, p, k, c)
 
         res = [
             bma_res(d.y, d.x, d.W, d_h.y, d_h.x, d_h.W; g_prior = "hyper-g/n"),
-            givbma_res(d.y, d.x, d.Z, d.W, d_h.y, d_h.x, d_h.Z, d_h.W; g_prior = "BRIC"),
-            givbma_res(d.y, d.x, d.Z, d.W, d_h.y, d_h.x, d_h.Z, d_h.W; g_prior = "hyper-g/n"),
+            givbma_res(d.y, d.x, d.Z, d.W, d_h.y, d_h.x, d_h.Z, d_h.W; g_prior = "hyper-g/n", cov_prior = "IW"),
+            givbma_res(d.y, d.x, d.Z, d.W, d_h.y, d_h.x, d_h.Z, d_h.W; g_prior = "hyper-g/n", cov_prior = "Cholesky", ω_a = 0.1),
             givbma_res(d.y, d.x, d.Z, d.W, d_h.y, d_h.x, d_h.Z, d_h.W; g_prior = "hyper-g/n", two_comp = true),
-            ivbma_kl(d.y, d.x, d.Z, d.W, d_h.y, d_h.x, d_h.Z, d_h.W),
-            ols(d.y, d.x, d.W, d_h.y, d_h.x, d_h.W),
+            hsiv(d.y, d.x, d.Z, d.W, d_h.y, d_h.x, d_h.Z, d_h.W; dist_x = "PLN"),
             tsls(d.y, d.x, d.Z, d.W, d_h.y, d_h.x, d_h.W),
             tsls(d.y, d.x, d.Z[:, 1:10], d.W[:, 1:5], d_h.y, d_h.x, d_h.W[:, 1:5]),
             jive(d.y, d.x, d.Z, d.W, d_h.y, d_h.x, d_h.W),
             rjive(d.y, d.x, d.Z, d.W, d_h.y, d_h.x, d_h.W),
-            matsls(d.y, d.x, d.Z, d.W, d_h.y, d_h.x, d_h.W),
+            matsls(d.y, d.x, d.Z, d.W, d_h.y, d_h.x, d_h.W)
+        ]
+
+        tau_store[i, 1:idx_switch] = map(x -> x.τ, res)
+        lps_store[i, 1:idx_switch] = map(x -> x.lps, res)
+        times_covered[1:idx_switch] += map(x -> (x.CI[1] < τ < x.CI[2]), res)
+    end
+
+    for i in 1:m
+        d = gen_data(n, c_M, τ, p, k, c)
+        d_h = gen_data(Int(n/5), c_M, τ, p, k, c)
+
+        res = [
+            ivbma_kl(d.y, d.x, d.Z, d.W, d_h.y, d_h.x, d_h.Z, d_h.W; extract_instruments = false),
             post_lasso(d.y, d.x, d.Z, d.W, d_h.y, d_h.x, d_h.W)
         ]
 
-        tau_store[i,:] = map(x -> x.τ, res)
-        lps_store[i, :] = map(x -> x.lps, res)
+        tau_store[i, (idx_switch+1):end] = map(x -> x.τ, res)
+        lps_store[i, (idx_switch+1):end] = map(x -> x.lps, res)
 
         # The coverage calculation has to be handled differently if no instruments are selected (just add a zero then)
         if res[end].no_instruments
             pl_no_instruments += 1 # count the number of times post-lasso does not select any instruments
-            times_covered += [map(x -> (x.CI[1] < τ < x.CI[2]), res[1:(end-1)]); 0]
+            times_covered[(idx_switch+1):end] += [map(x -> (x.CI[1] < τ < x.CI[2]), res[1:(end-1)]); 0]
         else
-            times_covered += map(x -> (x.CI[1] < τ < x.CI[2]), res)
+            times_covered[(idx_switch+1):end] += map(x -> (x.CI[1] < τ < x.CI[2]), res)
         end
     end
 
     # We could potentially get an error here if Post-Lasso never selects any instruments, but this should not happen for m large enough
     mae = mapslices(x -> median(abs.(skipmissing(x) .- τ)), tau_store, dims=1)
-    bias = mapslices(x -> median(skipmissing(x)) - τ, tau_store, dims=1)
+    bias = mapslices(x -> abs(median(skipmissing(x)) - τ), tau_store, dims=1)
     lps = [mean(lps_store[:, 1:(end-1)], dims = 1) missing]
     cov = times_covered ./ [repeat([m], length(meths)-1); m - pl_no_instruments]
 
@@ -114,10 +130,10 @@ end
 
 
 ##### Run the simulation #####
-
 m = 100
 c_M = [1/8, 3/8] # In this setup we get a first stage R^2 ≈ 0.1 with c_M = 3/8 and R^2 ≈ 0.01 with c_M = 1/8.
 
+Random.seed!(40)
 res50 = map(c -> sim_func(m, 50; c_M = c), c_M)
 res500 = map(c -> sim_func(m, 500; c_M = c), c_M)
 
@@ -131,7 +147,7 @@ res = BSON.load("SimResPLN.bson")
 # Helper function to format individual results into a LaTeX tabular format
 function format_result(res)
     tab = vcat(res.MAE, res.Bias, res.Coverage', res.LPS)'
-    return round.(tab, digits = 2)
+    return round.(tab, digits = 3)
 end
 
 # Helper function to bold the best value within each scenario
@@ -180,7 +196,7 @@ function make_stacked_multicolumn_table(res)
     PL_frequencies = map(x -> x.No_Instruments_PL, [res[:n50][1], res[:n50][2], res[:n500][1], res[:n500][2]])
 
     # Header for each method
-    methods = ["BMA (hyper-g/n)", "gIVBMA (BRIC)", "gIVBMA (hyper-g/n)", "gIVBMA (2C)", "IVBMA (KL)", "OLS", "TSLS", "O-TSLS", "JIVE", "RJIVE", "MATSLS", "Post-LASSO"]
+    methods = ["BMA (hyper-\$g/n\$)", "gIVBMA (IW)", "gIVBMA (\$\\omega_a = 0.1\$)", "gIVBMA (IW, 2C)", "BayesHS", "TSLS", "O-TSLS", "JIVE", "RJIVE", "MATSLS", "IVBMA", "Post-LASSO"]
     
     # Start the LaTeX table
     table_str = "\\begin{table}[H]\n\\centering\n\\begin{tabular}{l*{8}{r}}\n\\toprule\n"
