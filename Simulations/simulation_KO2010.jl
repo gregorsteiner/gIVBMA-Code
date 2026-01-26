@@ -252,3 +252,35 @@ end
 # Generate and print the LaTeX table with stacked multicolumns
 latex_table = make_stacked_multicolumn_table(res)
 println(latex_table)
+
+
+
+##### Mixing of the indicators #####
+
+# create traceplot for a single simulated dataset
+using CairoMakie, LaTeXStrings
+
+Random.seed!(42)
+d50 = gen_data_KO2010(50)
+d500 = gen_data_KO2010(500)
+
+res50 = givbma(d50.y, d50.x, d50.Z, d50.W; g_prior = "hyper-g/n", iter = 6000, burn = 1000)
+res50_chol = givbma(d50.y, d50.x, d50.Z, d50.W; g_prior = "hyper-g/n", cov_prior = "Cholesky", ω_a = 0.1, iter = 6000, burn = 1000)
+res50_2c = givbma(d50.y, d50.x, d50.Z, d50.W; g_prior = "hyper-g/n", two_comp = true, iter = 6000, burn = 1000)
+res500 = givbma(d500.y, d500.x, d500.Z, d500.W; g_prior = "hyper-g/n", iter = 6000, burn = 1000)
+res500_chol = givbma(d500.y, d500.x, d500.Z, d500.W; g_prior = "hyper-g/n", cov_prior = "Cholesky", ω_a = 0.1, iter = 6000, burn = 1000)
+res500_2c = givbma(d500.y, d500.x, d500.Z, d500.W; g_prior = "hyper-g/n", two_comp = true, iter = 6000, burn = 1000)
+
+fig = Figure()
+ax = Axis(fig[1, 1], ylabel = L"Treatment model size$$", xlabel = L"Iteration$$", title = L"n = 50")
+lines!(ax, sum(res50.M, dims = 1)[1, :], label = L"IW$$", alpha = 0.7)
+lines!(ax, sum(res50_2c.M, dims = 1)[1, :], label = L"IW, 2C$$", alpha = 0.7)
+lines!(ax, sum(res50_chol.M, dims = 1)[1, :], label = L"Cholesky ($\omega_a = 0.1$)", alpha = 0.7)
+
+ax500 = Axis(fig[1, 2], ylabel = L"Treatment model size$$", xlabel = L"Iteration$$", title = L"n = 500")
+lines!(ax500, sum(res500.M, dims = 1)[1, :], label = "M", alpha = 0.7)
+lines!(ax500, sum(res500_2c.M, dims = 1)[1, :], label = "IW, 2C", alpha = 0.7)
+lines!(ax500, sum(res500_chol.M, dims = 1)[1, :], label = "Cholesky", alpha = 0.7)
+
+fig[2, :] = Legend(fig, ax, orientation = :horizontal)
+save("Many_Weak_Instruments_Mixing.pdf", fig)
