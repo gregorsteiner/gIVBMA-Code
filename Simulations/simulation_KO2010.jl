@@ -254,7 +254,6 @@ latex_table = make_stacked_multicolumn_table(res)
 println(latex_table)
 
 
-
 ##### Mixing of the indicators #####
 
 # create traceplot for a single simulated dataset
@@ -272,15 +271,28 @@ res500_chol = givbma(d500.y, d500.x, d500.Z, d500.W; g_prior = "hyper-g/n", cov_
 res500_2c = givbma(d500.y, d500.x, d500.Z, d500.W; g_prior = "hyper-g/n", two_comp = true, iter = 6000, burn = 1000)
 
 fig = Figure()
-ax = Axis(fig[1, 1], ylabel = L"Treatment model size$$", xlabel = L"Iteration$$", title = L"n = 50")
+ax = Axis(fig[1, 1], ylabel = L"Treatment model size$$", xlabel = "", title = L"n = 50")
 lines!(ax, sum(res50.M, dims = 1)[1, :], label = L"IW$$", alpha = 0.7)
 lines!(ax, sum(res50_2c.M, dims = 1)[1, :], label = L"IW, 2C$$", alpha = 0.7)
 lines!(ax, sum(res50_chol.M, dims = 1)[1, :], label = L"Cholesky ($\omega_a = 0.1$)", alpha = 0.7)
 
-ax500 = Axis(fig[1, 2], ylabel = L"Treatment model size$$", xlabel = L"Iteration$$", title = L"n = 500")
+ax500 = Axis(fig[1, 2], ylabel = "", xlabel = "", title = L"n = 500")
 lines!(ax500, sum(res500.M, dims = 1)[1, :], label = "M", alpha = 0.7)
 lines!(ax500, sum(res500_2c.M, dims = 1)[1, :], label = "IW, 2C", alpha = 0.7)
 lines!(ax500, sum(res500_chol.M, dims = 1)[1, :], label = "Cholesky", alpha = 0.7)
 
-fig[2, :] = Legend(fig, ax, orientation = :horizontal)
+ax50_or = Axis(fig[2, 1], ylabel = L"Outcome model size$$", xlabel = L"Iteration$$")
+lines!(ax50_or, sum(res50.L, dims = 1)[1, :], label = L"IW$$", alpha = 0.7)
+lines!(ax50_or, sum(res50_2c.L, dims = 1)[1, :], label = L"IW, 2C$$", alpha = 0.7)
+lines!(ax50_or, sum(res50_chol.L, dims = 1)[1, :], label = L"Cholesky ($\omega_a = 0.1$)", alpha = 0.7)
+
+ax500_or = Axis(fig[2, 2], ylabel = "", xlabel = L"Iteration$$")
+lines!(ax500_or, sum(res500.L, dims = 1)[1, :], label = L"IW$$", alpha = 0.7)
+lines!(ax500_or, sum(res500_2c.L, dims = 1)[1, :], label = L"IW, 2C$$", alpha = 0.7)
+lines!(ax500_or, sum(res500_chol.L, dims = 1)[1, :], label = L"Cholesky ($\omega_a = 0.1$)", alpha = 0.7)
+
+fig[3, :] = Legend(fig, ax, orientation = :horizontal)
+fig
+
+
 save("Many_Weak_Instruments_Mixing.pdf", fig)

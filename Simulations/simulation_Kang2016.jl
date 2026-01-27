@@ -219,3 +219,34 @@ make_latex_table(res, cols, meths; type = "Performance") |> println
 
 
 
+
+
+##### Mixing of the indicators #####
+
+# create traceplot for a single simulated dataset
+gd(n) = gen_data_Kang2016(n, 0.1, 10, 3, 1/2)
+
+Random.seed!(42)
+d50 = gd(50)
+d500 = gd(500)
+
+res50 = givbma(d50.y, d50.x, d50.Z; g_prior = "hyper-g/n", iter = 6000, burn = 1000)
+res50_chol = givbma(d50.y, d50.x, d50.Z; g_prior = "hyper-g/n", cov_prior = "Cholesky", ω_a = 0.1, iter = 6000, burn = 1000)
+res500 = givbma(d500.y, d500.x, d500.Z; g_prior = "hyper-g/n", iter = 6000, burn = 1000)
+res500_chol = givbma(d500.y, d500.x, d500.Z; g_prior = "hyper-g/n", cov_prior = "Cholesky", ω_a = 0.1, iter = 6000, burn = 1000)
+
+using CairoMakie, LaTeXStrings
+
+fig = Figure()
+ax = Axis(fig[1, 1], ylabel = L"$N_Z$", xlabel = L"Iteration$$", title = L"n = 50",
+          yticks = WilkinsonTicks(5, k_min = 4, k_max = 8, Q = [(1.0, 1.0)]))
+lines!(ax, extract_instruments(res50.L, res50.M), label = L"IW$$", alpha = 0.7)
+lines!(ax, extract_instruments(res50_chol.L, res50_chol.M), label = L"Cholesky ($\omega_a = 0.1$)", alpha = 0.7)
+
+ax500 = Axis(fig[1, 2], ylabel = "", xlabel = L"Iteration $$", title = L"n = 500",
+             yticks = WilkinsonTicks(5, k_min = 4, k_max = 8, Q = [(1.0, 1.0)]))
+lines!(ax500, extract_instruments(res500.L, res500.M), label = "M", alpha = 0.7)
+lines!(ax500, extract_instruments(res500_chol.L, res500_chol.M), label = "Cholesky", alpha = 0.7)
+
+fig[2, :] = Legend(fig, ax, orientation = :horizontal)
+save("Invalid_Instruments_Mixing.pdf", fig)
