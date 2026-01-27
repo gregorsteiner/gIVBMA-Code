@@ -327,7 +327,7 @@ function ivbma_kl(y, X, Z, W, y_h, X_h, Z_h, W_h; s = 2000, b = 1000, target_M =
 end
 
 # alternative method for invalid instruments
-ivbma_kl(y, X, Z, y_h, X_h, Z_h; s = 2000, b = 1000) = ivbma_kl(y, X, Matrix{Float64}(undef, length(y), 0), Z, y_h, X_h, Matrix{Float64}(undef, length(y_h), 0), Z_h; s = s, b = b)
+ivbma_kl(y, X, Z, y_h, X_h, Z_h; s = 2000, b = 1000, extract_instruments = true) = ivbma_kl(y, X, Matrix{Float64}(undef, length(y), 0), Z, y_h, X_h, Matrix{Float64}(undef, length(y_h), 0), Z_h; s = s, b = b, extract_instruments = extract_instruments)
 
 
 """
