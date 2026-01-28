@@ -239,7 +239,7 @@ end
 """
     Implement the IVBMA procedure of Karl & Lenkoski based on their R package.
 """
-function ivbma_kl(y, X, Z, W, y_h, X_h, Z_h, W_h; s = 2000, b = 1000, target_M = [1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0], extract_instruments = true)
+function ivbma_kl(y, X, Z, W, y_h, X_h, Z_h, W_h; s = 2000, b = 1000, target_M = [1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0], instruments = true)
     n, l = (size(X, 1), size(X, 2))
 
     # centre data (so we do not need intercepts)
@@ -304,7 +304,7 @@ function ivbma_kl(y, X, Z, W, y_h, X_h, Z_h, W_h; s = 2000, b = 1000, target_M =
     # In L, we drop the first l variables (treatments)
     # We select M for the first variable as we only use this for l = 1
     # This is not needed in all scenarios => wrap it in this if-statement
-    if extract_instruments
+    if instruments
         N_Z = extract_instruments(res[:L]'[(l+1):(end), :], res[:M][:, 1, :])
     else
         N_Z = missing
@@ -327,7 +327,7 @@ function ivbma_kl(y, X, Z, W, y_h, X_h, Z_h, W_h; s = 2000, b = 1000, target_M =
 end
 
 # alternative method for invalid instruments
-ivbma_kl(y, X, Z, y_h, X_h, Z_h; s = 2000, b = 1000, extract_instruments = true) = ivbma_kl(y, X, Matrix{Float64}(undef, length(y), 0), Z, y_h, X_h, Matrix{Float64}(undef, length(y_h), 0), Z_h; s = s, b = b, extract_instruments = extract_instruments)
+ivbma_kl(y, X, Z, y_h, X_h, Z_h; s = 2000, b = 1000, instruments = true) = ivbma_kl(y, X, Matrix{Float64}(undef, length(y), 0), Z, y_h, X_h, Matrix{Float64}(undef, length(y_h), 0), Z_h; s = s, b = b, instruments = instruments)
 
 
 """
