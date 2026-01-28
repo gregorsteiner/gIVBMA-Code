@@ -74,7 +74,7 @@ fig = Figure()
 ax1 = Axis(fig[1, 1], 
     xlabel = "Father's years of education", 
     ylabel = "Frequency",
-    title = "Father")
+    title = "")
 hist!(ax1, d.fatheduc[.!miss_fath], 
     normalization = :pdf, alpha = 0.6,
     label = "Observed")
@@ -85,7 +85,7 @@ hist!(ax1, d.fatheduc[miss_fath],
 # Mother's education histogram
 ax2 = Axis(fig[1, 2], 
     xlabel = "Mother's years of education", 
-    ylabel = "Frequency",
+    ylabel = "",
     title = "")
 hist!(ax2, d.motheduc[.!miss_moth], 
     normalization = :pdf, alpha = 0.6,
