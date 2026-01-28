@@ -1,6 +1,6 @@
 
 using DataFrames, CSV, Random, Statistics, LogExpFunctions
-using CairoMakie, LaTeXStrings, KernelDensity, JLD2
+using CairoMakie, LaTeXStrings, KernelDensity, BSON
 
 # the following line needs to be run when using the gIVBMA package for the first time
 # using Pkg; Pkg.add(url="https://github.com/gregorsteiner/gIVBMA.jl.git")
@@ -9,13 +9,6 @@ using gIVBMA
 include("../Simulations/bma.jl")
 include("../Simulations/competing_methods.jl")
 
-##### Load and prepare data #####
-d = CSV.read("card.csv", DataFrame, missingstring = "NA")[:, Not(1)]
-
-d.agesq = d.age .^ 2
-
-covs_1 = ["age", "agesq", "nearc2", "nearc4", "momdad14", "sinmom14", "step14", "black", "south", "smsa", "married", "reg662", "reg663", "reg664", "reg665", "reg666", "reg667", "reg668", "reg669"]
-covs_2 = ["age", "agesq", "nearc2", "nearc4", "momdad14", "sinmom14", "step14", "black", "south", "smsa", "married", "reg662", "reg663", "reg664", "reg665", "reg666", "reg667", "reg668", "reg669", "fatheduc", "motheduc"]
 
 d_no_par_educ = d[:, [["id", "lwage", "educ"]; covs_1]]
 d_par_educ = d[:, [["id", "lwage", "educ"]; covs_2]]
