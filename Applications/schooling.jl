@@ -1,6 +1,6 @@
 
 using DataFrames, CSV, Random, Statistics, LogExpFunctions
-using CairoMakie, LaTeXStrings, KernelDensity
+using CairoMakie, LaTeXStrings, KernelDensity, StatsBase
 using JLD2
 
 # the following line needs to be run when using the gIVBMA package for the first time
@@ -221,6 +221,59 @@ matrix_to_latex(
 
 
 
+# Creates a side-by-side bar plot comparing the relative frequencies of instruments.
+function plot_instrument_comparison(N_Z, N_Z_s; labels=[L"IW$$", L"\omega_a = 0.1", L"IVBMA$$"])
+    # Initialize Figure
+    fig = Figure(size = (1000, 450), fontsize = 20)
+    
+    titles = [L"Imputed data$$", L"Complete data$$"]
+    data_sets = [N_Z, N_Z_s]
+    
+    # Iterate to create two subplots
+    for i in 1:2
+        
+        current_tuple = data_sets[i]
+        # Determine the global max to define the range from 0
+        global_max = maximum(maximum.(current_tuple))
+        x_range = 0:global_max # Force start at zero
+        
+        ax = Axis(fig[1, i], 
+            title = titles[i], 
+            xlabel = L"Number of Instruments$$", 
+            ylabel = i == 1 ? L"Posterior Probability$$" : "",
+            xticks = x_range,
+            xgridvisible = false)
+        
+        # 2. Plot grouped bars
+        width = 0.25 # Width of individual bars
+        offsets = [-width, 0, width]
+        colors = [:steelblue, :orange, :forestgreen] # Makie-style colors
+        
+        for (j, vec) in enumerate(current_tuple)
+            # Calculate relative frequencies
+            counts = countmap(vec)
+            freqs = [get(counts, v, 0) / length(vec) for v in x_range]
+            
+            barplot!(ax, x_range .+ offsets[j], freqs, 
+                width = width, 
+                color = (colors[j], 0.8), 
+                label = labels[j])
+        end
+        
+        # Add legend to the second plot only
+        axislegend(ax, position = :rt)
+    end
+    
+    return fig
+end
+
+# create a plot comparing the number of instruments selected
+N_Z = (extract_instruments(res["iw"].L, res["iw"].M), extract_instruments(res["chol"].L, res["chol"].M), res["ivbma"].N_Z)
+N_Z_s = (extract_instruments(res["iw_s"].L, res["iw_s"].M), extract_instruments(res["chol_s"].L, res["chol_s"].M), res["ivbma_s"].N_Z)
+
+save("Schooling_Instruments.pdf", plot_instrument_comparison(N_Z, N_Z_s))
+
+
 ##### LPS Comparison #####
 using ProgressBars
 
@@ -263,8 +316,8 @@ function kfold_cv(y, X, Z; k=5, iters = 500)
 end
 
 Random.seed!(42)
-res = kfold_cv(y, x, Z)
-res_s = kfold_cv(y_s, x_s, Z_s)
+res_lps = kfold_cv(y, x, Z)
+res_lps_s = kfold_cv(y_s, x_s, Z_s)
 
 function create_latex_table(res1, res2, methods)
     # Calculate means for all three result sets
@@ -296,5 +349,5 @@ function create_latex_table(res1, res2, methods)
 end
 
 meths = ["gIVBMA (IW)", "gIVBMA (\$\\omega_a = 0.1 \$)", "BMA", "IVBMA", "TSLS"]
-latex_table = create_latex_table(res, res_s, meths)
+latex_table = create_latex_table(res_lps, res_lps_s, meths)
 println(latex_table)

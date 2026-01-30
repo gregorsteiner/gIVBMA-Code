@@ -28,7 +28,6 @@ using gIVBMA
 include("../Simulations/bma.jl")
 
 
-Random.seed!(42)
 # number of iterations
 iters = 10000
 
@@ -37,6 +36,7 @@ y = df.lngdpc
 X = [df.rule df.malfal]
 Z = Matrix(df[:, needed_columns[Not(1:3)]])
 
+Random.seed!(42)
 res_iw = givbma(y, X, Z; iter = iters, burn = Int(iters/5), dist = ["Gaussian", "Gaussian", "BL"], g_prior = "hyper-g/n")
 res_chol = givbma(y, X, Z; iter = iters, burn = Int(iters/5), dist = ["Gaussian", "Gaussian", "BL"], g_prior = "hyper-g/n", cov_prior = "Cholesky", ω_a = 0.1)
 res_bma = bma(y, X, Z; iter = iters, burn = Int(iters/5), g_prior = "hyper-g/n")
@@ -120,6 +120,12 @@ end
 
 println(create_latex_table(res_iw, res_chol, res_bma))
 
+
+# compute probabilities of non-identification
+include("../Simulations/aux_functions.jl")
+
+println("Prob. of non-identification for IW: ", mean(extract_instruments(res_iw.L, res_iw.M) .< 2))
+println("Prob. of non-identification for Chol: ", mean(extract_instruments(res_chol.L, res_chol.M) .< 2))
 
 ##### LPS analysis #####
 
