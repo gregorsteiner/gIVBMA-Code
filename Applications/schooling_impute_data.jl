@@ -64,6 +64,10 @@ Random.seed!(42)
 d.fatheduc[miss_fath] = draw_predictions(d.fatheduc[.!miss_fath], Matrix{Int64}(d[.!miss_fath, covs_imp]), Matrix{Int64}(d[miss_fath, covs_imp]))
 d.motheduc[miss_moth] = draw_predictions(d.motheduc[.!miss_moth], Matrix{Int64}(d[.!miss_moth, covs_imp]), Matrix{Int64}(d[miss_moth, covs_imp]))
 
+# also include missing indicator
+d.fathmiss = miss_fath
+d.mothmiss = miss_moth
+
 # Create plots to compare imputed and observed values
 using CairoMakie
 
