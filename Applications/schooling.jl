@@ -34,7 +34,7 @@ d[d.mothmiss, "motheduc"] .= mean(d[.!d.mothmiss, "motheduc"])
 # define model matrices
 y = d.lwage
 x = d.educ
-Z = Matrix(d[:, 3:end])
+Z = Matrix{Float64}(d[:, 3:end])
 
 
 
@@ -65,7 +65,7 @@ end
 # fit alternative data without missing values
 bool = (.!d.fathmiss) .& (.!d.mothmiss) # only include rows where neither parent's education is missing
 y_s, x_s = d.lwage[bool], d.educ[bool]
-Z_s = Matrix(d[bool, 3:(end-2)])
+Z_s = Matrix{Float64}(d[bool, 3:(end-2)])
 
 results_s = Vector{Any}(undef, length(models))
 Threads.@threads for i in eachindex(models)
@@ -84,7 +84,6 @@ jldsave("Schooling_results.jld2";
     bma_s = results_s[3], 
     ivbma_s = results_s[4]
 )
-
 
 ##### Create plots and tables of the results #####
 
@@ -119,7 +118,6 @@ function plot_model_comparison(iw, chol, bma, ivbma; wdth = 2)
     # --- Panel 1: Tau Posterior ---
     ax1 = Axis(fig[1, 1], xlabel = L"\tau", ylabel = L"Posterior density$$")
 
-    # Standard Models
     lines!(ax1, rbw(iw)[1], color = cols[1], linewidth = wdth, label = L"gIVBMA (IW)$$")
     lines!(ax1, rbw(chol)[1], color = cols[2], linestyle = :dot, linewidth = wdth, label = L"gIVBMA ($\omega_a = 0.1$)")
     lines!(ax1, rbw_bma(bma)[1], color = cols[3], linestyle = :dashdot, linewidth = wdth, label = L"BMA$$")
@@ -229,7 +227,7 @@ using ProgressBars
 function kfold_cv(y, X, Z; k=5, iters = 500)
     n = length(y)
     fold_size = Int(floor(n / k))
-    meths = ["gIVBMA (hyper-g/n)", "gIVBMA (BRIC)", "BMA (hyper-g/n)", "IVBMA", "TSLS"]
+    meths = ["gIVBMA (IW)", "gIVBMA (ω_a = 0.1)", "BMA (hyper-g/n)", "IVBMA", "TSLS"]
     lps_store = zeros(k, length(meths))
 
     # Generate indices for each fold
@@ -242,12 +240,12 @@ function kfold_cv(y, X, Z; k=5, iters = 500)
         train_idx = setdiff(indices, test_idx)
 
         # Split the data
-        y_train, X_train, Z_train = y[train_idx], X[train_idx, :], Z[train_idx, :]
-        y_test, X_test, Z_test = y[test_idx], X[test_idx, :], Z[test_idx, :]
+        y_train, X_train, Z_train = y[train_idx], X[train_idx], Z[train_idx, :]
+        y_test, X_test, Z_test = y[test_idx], X[test_idx], Z[test_idx, :]
 
         # Fit the model on the training set
-        fit_hg = givbma(y_train, X_train, Z_train; g_prior = "hyper-g/n", iter = iters, burn = Int(iters/5))
-        fit_bric = givbma(y_train, X_train, Z_train; g_prior = "BRIC", iter = iters, burn = Int(iters/5))
+        fit_hg = givbma(y_train, X_train, Z_train; g_prior = "hyper-g/n", cov_prior = "IW", iter = iters, burn = Int(iters/5))
+        fit_bric = givbma(y_train, X_train, Z_train; g_prior = "hyper-g/n", cov_prior = "Cholesky", ω_a = 0.1, iter = iters, burn = Int(iters/5))
         fit_bma = bma(y_train, X_train, Z_train; g_prior = "hyper-g/n", iter = iters, burn = Int(iters/5))
         fit_ivbma = ivbma_kl(y_train, X_train, Z_train, y_test, X_test, Z_test)
 
@@ -265,44 +263,38 @@ function kfold_cv(y, X, Z; k=5, iters = 500)
 end
 
 Random.seed!(42)
-res1 = kfold_cv(y_1, X_1, Z_1)
-res2 = kfold_cv(y_2, X_2, Z_2)
-bool = map(x -> x in d_par_educ.id, d_no_par_educ.id)
-res1_small = kfold_cv(y_1[bool], X_1[bool, :], Z_1[bool, :])
+res = kfold_cv(y, x, Z)
+res_s = kfold_cv(y_s, x_s, Z_s)
 
-
-function create_latex_table(res1, res2, res3, methods)
+function create_latex_table(res1, res2, methods)
     # Calculate means for all three result sets
     means1 = round.(mean(res1, dims=1)[:], digits = 3)
     means2 = round.(mean(res2, dims=1)[:], digits = 3)
-    means3 = round.(mean(res3, dims=1)[:], digits = 3)
     
     # Find the indices of the lowest mean values for each column
     min_indices1 = findall(x -> x == minimum(means1), means1)
     min_indices2 = findall(x -> x == minimum(means2), means2)
-    min_indices3 = findall(x -> x == minimum(means3), means3)
     
     # Start building the LaTeX table with booktabs style
-    table = "\\begin{table}[h]\n\\centering\n\\begin{tabular}{lccc}\n"
+    table = "\\begin{table}[h]\n\\centering\n\\begin{tabular}{lcc}\n"
     table *= "\\toprule\n"
-    table *= "Method & (a) & (b) & (c) \\\\\n"
+    table *= "Method & Imputed (\$n = 3,003\$) & Complete (\$n=2,215\$) \\\\\n"
     table *= "\\midrule\n"
     
     # Fill in the table rows
     for i in eachindex(methods)
         mean_std1 = i in min_indices1 ? "\\textbf{" * string(means1[i]) * "}" : string(means1[i])
         mean_std2 = i in min_indices2 ? "\\textbf{" * string(means2[i]) * "}" : string(means2[i])
-        mean_std3 = i in min_indices3 ? "\\textbf{" * string(means3[i]) * "}" : string(means3[i])
         
-        table *= methods[i] * " & " * mean_std1 * " & " * mean_std2 * " & " * mean_std3 * " \\\\\n"
+        table *= methods[i] * " & " * mean_std1 * " & " * mean_std2 * " \\\\\n"
     end
     
     # Close the table
-    table *= "\\bottomrule\n\\end{tabular}\n\\caption{\\textbf{Returns to schooling:} The mean LPS calculated over each fold of the \\cite{card1995collegeproximity} data (a) without parental education (\$n = 3,003\$), (b) with parental education (\$n = 2,215\$), and (c) without parental education only using the shared set of observations (\$n = 2,215\$) in a 5-fold cross-validation procedure.}\n\\label{tab:schooling_5_fold_LPS}\n\\end{table}"
+    table *= "\\bottomrule\n\\end{tabular}\n\\caption{\\textbf{Returns to schooling:} The mean LPS calculated over each fold of the imputed data (\$n = 3,003\$) and the complete parental education data (\$n = 2,215\$) in a 5-fold cross-validation procedure.}\n\\label{tab:schooling_5_fold_LPS}\n\\end{table}"
     
     return table
 end
 
-meths = ["gIVBMA (hyper-g/n)", "gIVBMA (BRIC)", "BMA (hyper-g/n)", "IVBMA", "TSLS"]
-latex_table = create_latex_table(res1, res2, res1_small, meths)
+meths = ["gIVBMA (IW)", "gIVBMA (\$\\omega_a = 0.1 \$)", "BMA", "IVBMA", "TSLS"]
+latex_table = create_latex_table(res, res_s, meths)
 println(latex_table)
