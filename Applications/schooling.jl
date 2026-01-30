@@ -11,12 +11,32 @@ include("../Simulations/bma.jl")
 include("../Simulations/competing_methods.jl")
 
 
-# load data
-d = CSV.read("card_imputed.csv", DataFrame)
+##### Load and prepare data #####
+d = CSV.read("card.csv", DataFrame, missingstring = "NA")[:, Not(1)]
 
+d.expersq = d.exper.^2
+
+covs = ["exper", "expersq", "nearc2", "nearc4", "momdad14", "sinmom14", "step14", "black", "south", "smsa", "married", "reg662", "reg663", "reg664", "reg665", "reg666", "reg667", "reg668", "reg669", "fatheduc", "motheduc"]
+d = d[:, [["lwage", "educ"]; covs]]
+
+# drop missing values in any column other than parental education
+filter!(row -> !any(ismissing, row[1:(end-2)]), d)
+
+# impute the missing parental education by their mean
+d.fathmiss = ismissing.(d.fatheduc)
+d.mothmiss = ismissing.(d.motheduc)
+
+d.fatheduc = float.(d.fatheduc)
+d[d.fathmiss, "fatheduc"] .= mean(d[.!d.fathmiss, "fatheduc"])
+d.motheduc = float.(d.motheduc)
+d[d.mothmiss, "motheduc"] .= mean(d[.!d.mothmiss, "motheduc"])
+
+# define model matrices
 y = d.lwage
 x = d.educ
 Z = Matrix(d[:, 3:end])
+
+
 
 ##### Run analysis (fitting the models can take several hours) #####
 
@@ -39,6 +59,7 @@ Threads.@threads for i in eachindex(models)
     Random.seed!(42)
     results[i] = models[i](y, x, Z, iters_mcmc)
 end
+
 
 
 # fit alternative data without missing values
@@ -90,47 +111,42 @@ function compute_posterior_density(sample)
     )
 end
 
-wdth = 2 #line-/strokewidth
+function plot_model_comparison(iw, chol, bma, ivbma; wdth = 2)
+    cols = Makie.wong_colors()
+    ivbma_color = :purple
+    fig = Figure()
+    
+    # --- Panel 1: Tau Posterior ---
+    ax1 = Axis(fig[1, 1], xlabel = L"\tau", ylabel = L"Posterior density$$")
 
-fig = Figure()
-ax1 = Axis(fig[1, 1], xlabel = L"\tau", ylabel = L"Posterior density$$")
-lines!(ax1, rbw(res["iw"])[1], color = cols[1], linewidth = wdth, label = L"gIVBMA (IW)$$")
-lines!(ax1, rbw(res["chol"])[1], color = cols[2], linestyle = :dot, linewidth = wdth, label = L"gIVBMA ($\omega_a = 0.1$)")
-lines!(ax1, rbw_bma(res["bma"])[1], color = cols[3], linestyle = :dashdot, linewidth = wdth, label = L"BMA$$")
-kde_ivbma_1 = compute_posterior_density(res["ivbma"].τ_full[:, 1])
-lines!(ax1, kde_ivbma_1[1], kde_ivbma_1[2], color = cols[4], linestyle = :dashdotdot, linewidth = wdth, label = L"IVBMA$$")
-#xlims!(ax1, -0.01, 0.3)
+    # Standard Models
+    lines!(ax1, rbw(iw)[1], color = cols[1], linewidth = wdth, label = L"gIVBMA (IW)$$")
+    lines!(ax1, rbw(chol)[1], color = cols[2], linestyle = :dot, linewidth = wdth, label = L"gIVBMA ($\omega_a = 0.1$)")
+    lines!(ax1, rbw_bma(bma)[1], color = cols[3], linestyle = :dashdot, linewidth = wdth, label = L"BMA$$")
 
-ax2 = Axis(fig[1, 2], xlabel = L"\sigma_{yx} / \sigma_{xx}")
-density!(ax2, res["iw"].Σ[1, 2, :] ./ res["iw"].Σ[2, 2, :], color = :transparent, strokecolor = cols[1], strokewidth = wdth)
-density!(ax2, res["chol"].Σ[1, 2, :] ./ res["chol"].Σ[2, 2, :], color = :transparent, linestyle = :dot, strokecolor = cols[2], strokewidth = wdth)
-density!(ax2, res["ivbma"].Σ[1, 2, :] ./ res["ivbma"].Σ[2, 2, :] , color = :transparent, linestyle = :dashdotdot, strokecolor = cols[4], strokewidth = wdth)
-#xlims!(ax2, -0.31, 0.05)
+    # IVBMA Slab & Spike
+    k_iv = compute_posterior_density(ivbma.τ_full[:, 1])
+    # The "Slab"
+    lines!(ax1, k_iv[1], k_iv[2], color = ivbma_color, linestyle = :dashdotdot, linewidth = wdth, label = L"IVBMA$$")
+    # The "Spike" at zero
+    lines!(ax1, [0.0, 0.0], [0.0, k_iv[4]], color = ivbma_color, linewidth = wdth, linestyle = :dashdotdot, )
+    scatter!(ax1, [0.0], [k_iv[4]], color = ivbma_color, markersize = 8)
 
-Legend(fig[2, 1:2], ax1, orientation = :horizontal)
-fig 
-save("Posterior_Schooling.pdf", fig)
+    # --- Panel 2: Sigma Ratio ---
+    ax2 = Axis(fig[1, 2], xlabel = L"\sigma_{yx} / \sigma_{xx}")
+    
+    density!(ax2, iw.Σ[1, 2, :] ./ iw.Σ[2, 2, :], color = :transparent, strokecolor = cols[1], strokewidth = wdth)
+    density!(ax2, chol.Σ[1, 2, :] ./ chol.Σ[2, 2, :], color = :transparent, linestyle = :dot, strokecolor = cols[2], strokewidth = wdth)
+    density!(ax2, ivbma.Σ[1, 2, :] ./ ivbma.Σ[2, 2, :], color = :transparent, linestyle = :dashdotdot, strokecolor = ivbma_color, strokewidth = wdth)
+
+    Legend(fig[2, 1:2], ax1, orientation = :horizontal)
+    
+    return fig
+end
 
 
-# same plot for the smaller sample
-fig = Figure()
-ax1 = Axis(fig[1, 1], xlabel = L"\tau", ylabel = L"Posterior density$$")
-lines!(ax1, rbw(res["iw_s"])[1], color = cols[1], linewidth = wdth, label = L"gIVBMA (IW)$$")
-lines!(ax1, rbw(res["chol_s"])[1], color = cols[2], linestyle = :dot, linewidth = wdth, label = L"gIVBMA ($\omega_a = 0.1$)")
-lines!(ax1, rbw_bma(res["bma_s"])[1], color = cols[3], linestyle = :dashdot, linewidth = wdth, label = L"BMA$$")
-kde_ivbma_1 = compute_posterior_density(res["ivbma_s"].τ_full[:, 1])
-lines!(ax1, kde_ivbma_1[1], kde_ivbma_1[2], color = cols[4], linestyle = :dashdotdot, linewidth = wdth, label = L"IVBMA$$")
-#xlims!(ax1, -0.01, 0.3)
-
-ax2 = Axis(fig[1, 2], xlabel = L"\sigma_{yx} / \sigma_{xx}")
-density!(ax2, res["iw_s"].Σ[1, 2, :] ./ res["iw_s"].Σ[2, 2, :], color = :transparent, strokecolor = cols[1], strokewidth = wdth)
-density!(ax2, res["chol_s"].Σ[1, 2, :] ./ res["chol_s"].Σ[2, 2, :], color = :transparent, linestyle = :dot, strokecolor = cols[2], strokewidth = wdth)
-density!(ax2, res["ivbma_s"].Σ[1, 2, :] ./ res["ivbma_s"].Σ[2, 2, :] , color = :transparent, linestyle = :dashdotdot, strokecolor = cols[4], strokewidth = wdth)
-#xlims!(ax2, -0.31, 0.05)
-
-Legend(fig[2, 1:2], ax1, orientation = :horizontal)
-fig 
-save("Posterior_Schooling_small.pdf", fig)
+save("Posterior_Schooling.pdf", plot_model_comparison(res["iw"], res["chol"], res["bma"], res["ivbma"]))
+save("Posterior_Schooling_small.pdf", plot_model_comparison(res["iw_s"], res["chol_s"], res["bma_s"], res["ivbma_s"]))
 
 
 
@@ -193,8 +209,15 @@ function matrix_to_latex(matrix, rownames)
     return println(latex)
 end
 
+# PIP table for the full dataset
 matrix_to_latex(
     create_pip_table(res["iw"], res["chol"], res["ivbma"], res["bma"]),
+    names(d)[3:end]
+)
+
+# PIP table for the smaller dataset
+matrix_to_latex(
+    create_pip_table(res["iw_s"], res["chol_s"], res["ivbma_s"], res["bma_s"]),
     names(d)[3:end]
 )
 
