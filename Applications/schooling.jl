@@ -37,7 +37,6 @@ x = d.educ
 Z = Matrix{Float64}(d[:, 3:end])
 
 
-
 ##### Run analysis (fitting the models can take several hours) #####
 
 # Define models as an array of functions
@@ -84,6 +83,10 @@ jldsave("Schooling_results.jld2";
     bma_s = results_s[3], 
     ivbma_s = results_s[4]
 )
+
+# fit tsls for Comparison
+tsls(y, x, Z[:, 4], Z[:, Not(3, 4)], y, x, Z[:, Not(3, 4)])
+
 
 ##### Create plots and tables of the results #####
 
