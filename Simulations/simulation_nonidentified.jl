@@ -60,10 +60,12 @@ function simulation_function(m, n)
     return mean(posterior_prob_non_identified)
 end
 
-ns = [50, 200, 500]
 Random.seed!(42)
-res = map(n -> simulation_function(100, n), ns)
-round.(res, digits = 3)
+println(
+    "Mean posterior probability of non-identification: ",
+    round.(simulation_function(100, 100), digits = 3)
+)
+
 
 # compare to prior probability
 function instrument_prior(n_z, p)

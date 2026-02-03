@@ -85,8 +85,11 @@ jldsave("Schooling_results.jld2";
 )
 
 # fit tsls for Comparison
-tsls(y, x, Z[:, 4], Z[:, Not(3, 4)], y, x, Z[:, Not(3, 4)])
+tsls(y, x, Z[:, 4], Z[:, Not(3, 4)], y, x, Z[:, Not(3, 4)]) # Card instruments full sample
+tsls(y_s, x_s, Z_s[:, 4], Z_s[:, Not(3, 4)], y_s, x_s, Z_s[:, Not(3, 4)]) # Card instruments reduced sample
 
+tsls(y, x, Z[:, [4, 5, 20, 21]], Z[:, Not(3, 4, 5, 20, 21)], y, x, Z[:, Not(3, 4, 5, 20, 21)]) # gIVBMA instruments full sample
+tsls(y_s, x_s, Z_s[:, [ 7, 20, 21]], Z_s[:, Not(3, 4, 7, 20, 21)], y_s, x_s, Z_s[:, Not(3, 4, 7, 20, 21)]) # gIVBMA instruments reduced sample
 
 ##### Create plots and tables of the results #####
 
