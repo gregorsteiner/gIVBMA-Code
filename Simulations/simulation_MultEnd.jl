@@ -102,7 +102,7 @@ function sim_func(m, n; c = 2/3, tau = [1/2, -1/2])
             bma_res(y, X, Z, y_h, X_h, Z_h; g_prior = "hyper-g/n"),
             givbma_res(y, X, Z, y_h, X_h, Z_h; cov_prior = "IW"),
             givbma_res(y, X, Z, y_h, X_h, Z_h; cov_prior = "Cholesky", ω_a = 0.1),
-            ivbma_kl(y, X, Z, y_h, X_h, Z_h),
+            ivbma_kl(y, X, Z, y_h, X_h, Z_h; instruments = false),
             tsls(y, X, Z, y_h, X_h, Z_h),
             tsls(y, X, Z[:, [1, 5, 7, 11, 13]], y_h, X_h, Z_h[:, [1, 5, 7, 11, 13]]),
             matsls(y, X, Z, y_h, X_h, Z_h)

@@ -102,7 +102,7 @@ function sim_func(m, n; c_M = 3/8, τ = 0.1, p = 20, k = 10, c = 1/2)
         d_h = gen_data_KO2010(Int(n/5), c_M, τ, p, k, c)
 
         res = [
-            ivbma_kl(d.y, d.x, d.Z, d.W, d_h.y, d_h.x, d_h.Z, d_h.W; extract_instruments = false),
+            ivbma_kl(d.y, d.x, d.Z, d.W, d_h.y, d_h.x, d_h.Z, d_h.W; instruments = false),
             post_lasso(d.y, d.x, d.Z, d.W, d_h.y, d_h.x, d_h.W)
         ]
 

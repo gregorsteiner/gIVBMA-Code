@@ -235,18 +235,113 @@ res50_chol = givbma(d50.y, d50.x, d50.Z; g_prior = "hyper-g/n", cov_prior = "Cho
 res500 = givbma(d500.y, d500.x, d500.Z; g_prior = "hyper-g/n", iter = 6000, burn = 1000)
 res500_chol = givbma(d500.y, d500.x, d500.Z; g_prior = "hyper-g/n", cov_prior = "Cholesky", ω_a = 0.1, iter = 6000, burn = 1000)
 
+
 using CairoMakie, LaTeXStrings
 
 fig = Figure()
-ax = Axis(fig[1, 1], ylabel = L"$N_Z$", xlabel = L"Iteration$$", title = L"n = 50",
-          yticks = WilkinsonTicks(5, k_min = 4, k_max = 8, Q = [(1.0, 1.0)]))
-lines!(ax, extract_instruments(res50.L, res50.M), label = L"IW$$", alpha = 0.7)
-lines!(ax, extract_instruments(res50_chol.L, res50_chol.M), label = L"Cholesky ($\omega_a = 0.1$)", alpha = 0.7)
 
-ax500 = Axis(fig[1, 2], ylabel = "", xlabel = L"Iteration $$", title = L"n = 500",
-             yticks = WilkinsonTicks(5, k_min = 4, k_max = 8, Q = [(1.0, 1.0)]))
-lines!(ax500, extract_instruments(res500.L, res500.M), label = "M", alpha = 0.7)
-lines!(ax500, extract_instruments(res500_chol.L, res500_chol.M), label = "Cholesky", alpha = 0.7)
+# --- Setup Data for looping (optional but cleaner) ---
+results = [
+    (res50, res50_chol, L"n = 50"),
+    (res500, res500_chol, L"n = 500")
+]
 
-fig[2, :] = Legend(fig, ax, orientation = :horizontal)
+line_refs = []
+for (i, (r, r_chol, t)) in enumerate(results)
+    
+    # Row 1: Number of Outcome Variables (L)
+    ax_L = Axis(fig[1, i], title = "", 
+                subtitle = t, ylabel = (i == 1 ? L"L" : ""))
+    
+    # We only need to label these once for the legend to find them
+    l1 = lines!(ax_L, vec(sum(r.L, dims = 1)), label = L"IW$$", alpha = 0.7)
+    l2 = lines!(ax_L, vec(sum(r_chol.L, dims = 1)), label = L"Cholesky ($\omega_a = 0.1$)", alpha = 0.7)
+    
+    # Save references from the first column to use for the legend
+    if i == 1
+        append!(line_refs, [l1, l2])
+    end
+    # Row 2: Number of Treatment Variables (M)
+    ax_M = Axis(fig[2, i], title = "", 
+                ylabel = (i == 1 ? L"M" : ""))
+    lines!(ax_M, vec(sum(r.M, dims = 1)), alpha = 0.7)
+    lines!(ax_M, vec(sum(r_chol.M, dims = 1)), alpha = 0.7)
+
+    # Row 3: Number of Implied Instruments (extract_instruments)
+    ax_Z = Axis(fig[3, i], title = "", 
+                xlabel = L"Iteration$$", ylabel = (i == 1 ? L"$N_Z$" : ""))
+    lines!(ax_Z, extract_instruments(r.L, r.M), alpha = 0.7)
+    lines!(ax_Z, extract_instruments(r_chol.L, r_chol.M), alpha = 0.7)
+end
+
+# Add a single legend at the bottom
+Legend(fig[4, :], line_refs, [L"IW$$", L"Cholesky ($\omega_a = 0.1$)"], 
+       orientation = :horizontal)
+
+display(fig)
 save("Invalid_Instruments_Mixing.pdf", fig)
+
+
+
+##### Identification with different starting values #####
+
+# for this experiment, we need a different version of the gIVBMA package
+# which allows us to fix the starting values of the models (by default they are chosen randomly)
+using Pkg; Pkg.add(url="https://github.com/gregorsteiner/gIVBMA.jl.git", rev = "fix_starting_model")
+using gIVBMA
+
+
+# create traceplot for a single simulated dataset
+gd(n) = gen_data_Kang2016(n, 0.1, 10, 3, 1/2)
+
+Random.seed!(42)
+d50 = gd(50)
+d500 = gd(500)
+
+res50_full = givbma(d50.y, d50.x, d50.Z; g_prior = "hyper-g/n", iter = 5000, burn = 0, model_start = "Full")
+res50_null = givbma(d50.y, d50.x, d50.Z; g_prior = "hyper-g/n", iter = 5000, burn = 0, model_start = "Empty")
+res500_full = givbma(d500.y, d500.x, d500.Z; g_prior = "hyper-g/n", iter = 5000, burn = 0, model_start = "Full")
+res500_null = givbma(d500.y, d500.x, d500.Z; g_prior = "hyper-g/n", iter = 5000, burn = 0, model_start = "Empty")
+
+
+fig = Figure()
+
+results = [
+    (res50_full, res50_null, L"n = 50"),
+    (res500_full, res500_null, L"n = 500")
+]
+
+line_refs = []
+for (i, (r, r_chol, t)) in enumerate(results)
+    
+    # Row 1: Number of Outcome Variables (L)
+    ax_L = Axis(fig[1, i], title = "", 
+                subtitle = t, ylabel = (i == 1 ? L"L" : ""))
+    
+    # We only need to label these once for the legend to find them
+    l1 = lines!(ax_L, vec(sum(r.L, dims = 1)), label = L"$N_Z = 10$", alpha = 0.7)
+    l2 = lines!(ax_L, vec(sum(r_chol.L, dims = 1)), label = L"$N_Z = 0$", alpha = 0.7)
+    
+    # Save references from the first column to use for the legend
+    if i == 1
+        append!(line_refs, [l1, l2])
+    end
+    # Row 2: Number of Treatment Variables (M)
+    ax_M = Axis(fig[2, i], title = "", 
+                ylabel = (i == 1 ? L"M" : ""))
+    lines!(ax_M, vec(sum(r.M, dims = 1)), alpha = 0.7)
+    lines!(ax_M, vec(sum(r_chol.M, dims = 1)), alpha = 0.7)
+
+    # Row 3: Number of Implied Instruments (extract_instruments)
+    ax_Z = Axis(fig[3, i], title = "", 
+                xlabel = L"Iteration$$", ylabel = (i == 1 ? L"$N_Z$" : ""))
+    lines!(ax_Z, extract_instruments(r.L, r.M), alpha = 0.7)
+    lines!(ax_Z, extract_instruments(r_chol.L, r_chol.M), alpha = 0.7)
+end
+
+# Add a single legend at the bottom
+Legend(fig[4, :], line_refs, [L"$N_Z = 10$", L"$N_Z = 0$"], 
+       orientation = :horizontal)
+
+display(fig)
+save("Invalid_Instruments_Starting_Values.pdf", fig)

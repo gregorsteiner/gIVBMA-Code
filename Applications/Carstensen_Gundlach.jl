@@ -28,7 +28,6 @@ using gIVBMA
 include("../Simulations/bma.jl")
 
 
-Random.seed!(42)
 # number of iterations
 iters = 10000
 
@@ -37,17 +36,18 @@ y = df.lngdpc
 X = [df.rule df.malfal]
 Z = Matrix(df[:, needed_columns[Not(1:3)]])
 
-res_bric = givbma(y, X, Z; iter = iters, burn = Int(iters/5), dist = ["Gaussian", "Gaussian", "BL"], g_prior = "BRIC")
-res_hg = givbma(y, X, Z; iter = iters, burn = Int(iters/5), dist = ["Gaussian", "Gaussian", "BL"], g_prior = "hyper-g/n")
+Random.seed!(42)
+res_iw = givbma(y, X, Z; iter = iters, burn = Int(iters/5), dist = ["Gaussian", "Gaussian", "BL"], g_prior = "hyper-g/n")
+res_chol = givbma(y, X, Z; iter = iters, burn = Int(iters/5), dist = ["Gaussian", "Gaussian", "BL"], g_prior = "hyper-g/n", cov_prior = "Cholesky", ω_a = 0.1)
 res_bma = bma(y, X, Z; iter = iters, burn = Int(iters/5), g_prior = "hyper-g/n")
 
 # plot of posteriors
 p = Figure()
 ax = Axis(p[1, 1], xlabel = "τ", ylabel = "Density")
-lines!(ax, rbw(res_bric)[1], label = "gIVBMA (BRIC)")
-lines!(ax, rbw(res_bric)[2])
-lines!(ax, rbw(res_hg)[1], label = "gIVBMA (hyper-g/n)", color = Makie.wong_colors()[2])
-lines!(ax, rbw(res_hg)[2], color = Makie.wong_colors()[2])
+lines!(ax, rbw(res_iw)[1], label = "gIVBMA (IW)")
+lines!(ax, rbw(res_iw)[2])
+lines!(ax, rbw(res_chol)[1], label = "gIVBMA (Cholesky)", color = Makie.wong_colors()[2])
+lines!(ax, rbw(res_chol)[2], color = Makie.wong_colors()[2])
 lines!(ax, rbw_bma(res_bma)[1], label = "BMA (hyper-g/n)", color = Makie.wong_colors()[3])
 lines!(ax, rbw_bma(res_bma)[2], color = Makie.wong_colors()[3])
 axislegend(; position = :lt)
@@ -86,7 +86,7 @@ function create_latex_table(res_bric, res_hg, res_bma)
     \\centering
     \\begin{tabular}{lcccccc}
     \\toprule
-    & \\multicolumn{2}{c}{\\textbf{gIVBMA (BRIC)}} & \\multicolumn{2}{c}{\\textbf{gIVBMA (hyper-g/n)}} & \\multicolumn{2}{c}{\\textbf{BMA (hyper-g/n)}}\\\\
+    & \\multicolumn{2}{c}{\\textbf{gIVBMA (IW)}} & \\multicolumn{2}{c}{\\textbf{gIVBMA (\$\\omega_a = 0.1\$)}} & \\multicolumn{2}{c}{\\textbf{BMA (hyper-g/n)}}\\\\
     \\cmidrule(lr){2-3} \\cmidrule(lr){4-5} \\cmidrule(lr){6-7}
     & Mean & 95\\% CI & Mean & 95\\% CI & Mean & 95\\% CI \\\\
     \\midrule
@@ -118,8 +118,14 @@ function create_latex_table(res_bric, res_hg, res_bma)
     return table
 end
 
-println(create_latex_table(res_bric, res_hg, res_bma))
+println(create_latex_table(res_iw, res_chol, res_bma))
 
+
+# compute probabilities of non-identification
+include("../Simulations/aux_functions.jl")
+
+println("Prob. of non-identification for IW: ", mean(extract_instruments(res_iw.L, res_iw.M) .< 2))
+println("Prob. of non-identification for Chol: ", mean(extract_instruments(res_chol.L, res_chol.M) .< 2))
 
 ##### LPS analysis #####
 
@@ -128,7 +134,7 @@ include("../Simulations/competing_methods.jl")
 function loocv(y, X, Z)
     n = length(y)
     
-    meths = ["gIVBMA (BRIC)", "gIVBMA (hyper-g/n)", "IVBMA (KL)", "BMA (hyper-g/n)", "TSLS"]
+    meths = ["gIVBMA (IW)", "gIVBMA (\$\\omega_a = 0.1\$)", "IVBMA (KL)", "BMA (hyper-g/n)", "TSLS"]
     lps_store = zeros(n, length(meths))
     
     for i in 1:n
@@ -140,15 +146,15 @@ function loocv(y, X, Z)
         y_test, X_test, Z_test = (y[i:i], X[i:i, :], Z[i:i, :])
         
         # Fit the model on the training set
-        fit_bric = givbma(y_train, X_train, Z_train; dist = ["Gaussian", "Gaussian", "BL"], g_prior = "BRIC")
-        fit_hg = givbma(y_train, X_train, Z_train; dist = ["Gaussian", "Gaussian", "BL"], g_prior = "hyper-g/n")
+        fit_bric = givbma(y_train, X_train, Z_train; dist = ["Gaussian", "Gaussian", "BL"], g_prior = "hyper-g/n")
+        fit_hg = givbma(y_train, X_train, Z_train; dist = ["Gaussian", "Gaussian", "BL"], g_prior = "hyper-g/n", cov_prior = "Cholesky", ω_a = 0.1)
         fit_bma = bma(y_train, X_train, Z_train; g_prior = "hyper-g/n")
         
         # Compute LPS for the current test observation
         lps_store[i, :] = [
             lps(fit_bric, y_test, X_test, Z_test),
             lps(fit_hg, y_test, X_test, Z_test),
-            ivbma_kl(y_train, X_train, Z_train, y_test, X_test, Z_test).lps,
+            ivbma_kl(y_train, X_train, Z_train, y_test, X_test, Z_test; extract_instruments = false).lps,
             lps_bma(fit_bma, y_test, X_test, Z_test),
             tsls(y_train, X_train, Z_train, y_test, X_test, Z_test).lps
         ]
@@ -190,7 +196,7 @@ function create_latex_table(res, methods)
     return table
 end
 
-methods = ["gIVBMA (BRIC)", "gIVBMA (hyper-g/n)", "IVBMA (KL)", "BMA (hyper-g/n)", "TSLS"]
+methods = ["gIVBMA (IW)", "gIVBMA (\$\\omega_a = 0.1\$)", "IVBMA", "BMA (hyper-g/n)", "TSLS"]
 latex_table = create_latex_table(res, methods)
 println(latex_table)
 
