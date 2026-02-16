@@ -292,7 +292,7 @@ using gIVBMA
 
 
 # create traceplot for a single simulated dataset
-gd(n) = gen_data_Kang2016(n, 0.1, 10, 3, 1/2)
+gd(n) = gen_data_Kang2016(n, 0.1, 10, 6, 1/2)
 
 Random.seed!(42)
 d50 = gd(50)
