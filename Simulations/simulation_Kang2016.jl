@@ -289,12 +289,12 @@ save("Invalid_Instruments_Mixing.pdf", fig)
 # which allows us to fix the starting values of the models (by default they are chosen randomly)
 using Pkg; Pkg.add(url="https://github.com/gregorsteiner/gIVBMA.jl.git", rev = "fix_starting_model")
 using gIVBMA
-
+using CairoMakie, LaTeXStrings
 
 # create traceplot for a single simulated dataset
 gd(n) = gen_data_Kang2016(n, 0.1, 10, 6, 1/2)
 
-Random.seed!(42)
+Random.seed!(46)
 d50 = gd(50)
 d500 = gd(500)
 
